@@ -36,11 +36,19 @@ ENABLE_WEBSOCKET = os.getenv('ENABLE_WEBSOCKET', 'true').lower() == 'true'
 ENABLE_HTTP_PROXY = os.getenv('ENABLE_HTTP_PROXY', 'true').lower() == 'true'
 
 # Setup logging
+try:
+    os.makedirs('/var/log/mastermind', exist_ok=True)
+    log_file = '/var/log/mastermind/python-proxy.log'
+except (OSError, PermissionError):
+    # Fallback to local log directory if system path is not writable
+    os.makedirs('./logs', exist_ok=True)
+    log_file = './logs/python-proxy.log'
+
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('/var/log/mastermind/python-proxy.log'),
+        logging.FileHandler(log_file),
         logging.StreamHandler()
     ]
 )
@@ -476,7 +484,9 @@ class MastermindProxyManager:
         # Start WebSocket proxy if enabled
         if ENABLE_WEBSOCKET:
             self.websocket_proxy = WebSocketProxy()
-            asyncio.create_task(self.websocket_proxy.start())
+            ws_thread = threading.Thread(target=self._start_websocket)
+            ws_thread.daemon = True
+            ws_thread.start()
             
         # Start HTTP proxy if enabled
         if ENABLE_HTTP_PROXY:
@@ -506,6 +516,15 @@ class MastermindProxyManager:
             
         logger.info("All proxy services stopped")
         
+    def _start_websocket(self):
+        """Start WebSocket proxy in new event loop"""
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(self.websocket_proxy.start())
+        except Exception as e:
+            logger.error(f"WebSocket proxy error: {e}")
+            
     def signal_handler(self, signum, frame):
         """Handle shutdown signals"""
         logger.info(f"Received signal {signum}, shutting down...")
