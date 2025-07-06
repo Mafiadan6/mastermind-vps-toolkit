@@ -19,7 +19,14 @@ A comprehensive terminal-based VPS management toolkit for proxy services, networ
 - Ubuntu 20.04+ or Debian 10+ (for VPS deployment)
 - Root or sudo access
 
-### Quick Setup
+### One-Command Auto Installation
+
+```bash
+# Download and install directly from GitHub (Recommended)
+curl -sSL https://raw.githubusercontent.com/Mafiadan6/mastermind-vps-toolkit/main/install.sh | sudo bash
+```
+
+### Manual Installation
 
 1. **Clone the repository**
    ```bash
@@ -27,13 +34,9 @@ A comprehensive terminal-based VPS management toolkit for proxy services, networ
    cd mastermind-vps-toolkit
    ```
 
-2. **Make installation script executable**
+2. **Run the auto installer**
    ```bash
    chmod +x install.sh
-   ```
-
-3. **Run the installer**
-   ```bash
    sudo ./install.sh
    ```
 
