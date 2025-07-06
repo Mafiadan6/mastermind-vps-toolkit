@@ -481,6 +481,10 @@ verify_installation() {
 post_install_setup() {
     log "Running post-installation setup..."
     
+    # Create backup directory first
+    mkdir -p /opt/mastermind/backups
+    chown proxy-user:proxy-user /opt/mastermind/backups
+    
     # Create log files with proper permissions
     touch /var/log/mastermind/python-proxy.log
     touch /var/log/mastermind/tcp-bypass.log
@@ -493,14 +497,18 @@ post_install_setup() {
     systemctl enable python-proxy
     systemctl enable tcp-bypass
     
-    # Generate initial configuration
+    # Generate initial configuration with error handling
     if [ -f "$INSTALL_DIR/core/first_run.sh" ]; then
-        bash "$INSTALL_DIR/core/first_run.sh"
+        bash "$INSTALL_DIR/core/first_run.sh" || {
+            log "Warning: First run setup had issues, continuing..."
+        }
     fi
     
-    # Generate SSH banner
+    # Generate SSH banner with error handling
     if [ -f "$INSTALL_DIR/core/banner_setup.sh" ]; then
-        bash "$INSTALL_DIR/core/banner_setup.sh"
+        bash "$INSTALL_DIR/core/banner_setup.sh" || {
+            log "Warning: Banner setup had issues, continuing..."
+        }
     fi
     
     log "Post-installation setup completed"
