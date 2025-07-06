@@ -424,6 +424,109 @@ init_helpers() {
     log_info "Helper functions initialized"
 }
 
+# Additional functions for V2Ray and other protocols
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+get_service_status() {
+    local service="$1"
+    if systemctl is-active --quiet "$service" 2>/dev/null; then
+        echo -e "\033[32mRunning\033[0m"
+    elif systemctl is-enabled --quiet "$service" 2>/dev/null; then
+        echo -e "\033[33mStopped\033[0m"
+    else
+        echo -e "\033[31mDisabled\033[0m"
+    fi
+}
+
+get_port_status() {
+    local port="$1"
+    if ss -tuln | grep -q ":${port} "; then
+        echo -e "\033[32mOpen\033[0m"
+    else
+        echo -e "\033[31mClosed\033[0m"
+    fi
+}
+
+is_service_running() {
+    local service="$1"
+    systemctl is-active --quiet "$service" 2>/dev/null
+}
+
+get_public_ip() {
+    curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com 2>/dev/null || echo "Unknown"
+}
+
+wait_for_key() {
+    echo
+    read -p "Press Enter to continue..." -r
+}
+
+get_input() {
+    local prompt="$1"
+    local validator="$2"
+    local default="$3"
+    local input=""
+    
+    while true; do
+        if [ -n "$default" ]; then
+            read -p "$prompt [$default]: " input
+            input="${input:-$default}"
+        else
+            read -p "$prompt: " input
+        fi
+        
+        if [ -z "$validator" ] || "$validator" "$input"; then
+            echo "$input"
+            return 0
+        fi
+    done
+}
+
+validate_number() {
+    local input="$1"
+    if [[ "$input" =~ ^[0-9]+$ ]]; then
+        return 0
+    else
+        log_error "Invalid number format"
+        return 1
+    fi
+}
+
+confirm() {
+    local prompt="$1"
+    local response
+    
+    while true; do
+        read -p "$prompt [y/N]: " response
+        case "$response" in
+            [Yy]|[Yy][Ee][Ss]) return 0 ;;
+            [Nn]|[Nn][Oo]|"") return 1 ;;
+            *) echo "Please answer yes or no." ;;
+        esac
+    done
+}
+
+validate_config() {
+    local config_file="${1:-$V2RAY_CONFIG_FILE}"
+    
+    if [ ! -f "$config_file" ]; then
+        log_error "Configuration file not found: $config_file"
+        return 1
+    fi
+    
+    # Check if it's valid JSON
+    if command_exists jq; then
+        jq empty "$config_file" 2>/dev/null
+        return $?
+    else
+        # Basic JSON validation
+        python3 -m json.tool "$config_file" >/dev/null 2>&1
+        return $?
+    fi
+}
+
 # Auto-initialize when sourced
 if [ "${BASH_SOURCE[0]}" != "${0}" ]; then
     init_helpers
