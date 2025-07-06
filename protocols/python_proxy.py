@@ -26,10 +26,10 @@ import websockets
 import ssl
 
 # Configuration
-SOCKS_PORT = int(os.getenv('SOCKS_PORT', '8080'))
+SOCKS_PORT = int(os.getenv('SOCKS_PORT', '1080'))
 RESPONSE_PORTS = [int(p) for p in os.getenv('RESPONSE_PORTS', '101,200,300,301').split(',')]
 RESPONSE_MSG = os.getenv('RESPONSE_MSG', 'Mastermind VPS Toolkit')
-WEBSOCKET_PORT = int(os.getenv('WEBSOCKET_PORT', '8081'))
+WEBSOCKET_PORT = int(os.getenv('WEBSOCKET_PORT', '8080'))
 HTTP_PROXY_PORT = int(os.getenv('HTTP_PROXY_PORT', '8082'))
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 ENABLE_WEBSOCKET = os.getenv('ENABLE_WEBSOCKET', 'true').lower() == 'true'
