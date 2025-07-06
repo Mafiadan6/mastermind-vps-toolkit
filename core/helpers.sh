@@ -1,342 +1,430 @@
 #!/bin/bash
 
 # Mastermind VPS Toolkit - Helper Functions
-# Version: 1.0.0
+# Version: 2.0.0
 
-# Color codes
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-PURPLE='\033[0;35m'
-CYAN='\033[0;36m'
-WHITE='\033[1;37m'
-NC='\033[0m' # No Color
-
-# Logging functions
+# Enhanced logging functions
 log_info() {
-    echo -e "${GREEN}[INFO]${NC} $1"
+    echo -e "\033[0;36m[INFO]\033[0m $1" | tee -a "$LOG_DIR/mastermind.log"
 }
 
 log_warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
+    echo -e "\033[1;33m[WARN]\033[0m $1" | tee -a "$LOG_DIR/mastermind.log"
 }
 
 log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+    echo -e "\033[0;31m[ERROR]\033[0m $1" | tee -a "$LOG_DIR/mastermind.log" >&2
 }
 
-log_debug() {
-    if [ "$DEBUG" = "true" ]; then
-        echo -e "${BLUE}[DEBUG]${NC} $1"
+log_success() {
+    echo -e "\033[0;32m[SUCCESS]\033[0m $1" | tee -a "$LOG_DIR/mastermind.log"
+}
+
+# System utilities
+check_command() {
+    local cmd="$1"
+    if ! command -v "$cmd" &> /dev/null; then
+        log_error "Command '$cmd' not found. Please install it first."
+        return 1
+    fi
+    return 0
+}
+
+ensure_directory() {
+    local dir="$1"
+    if [ ! -d "$dir" ]; then
+        mkdir -p "$dir"
+        log_info "Created directory: $dir"
     fi
 }
 
-# Get public IP address
-get_public_ip() {
-    local ip=$(curl -s ifconfig.me 2>/dev/null)
-    if [ -z "$ip" ]; then
-        ip=$(curl -s ipinfo.io/ip 2>/dev/null)
+# Service management helpers
+service_start() {
+    local service="$1"
+    if systemctl start "$service" 2>/dev/null; then
+        log_success "Started service: $service"
+        return 0
+    else
+        log_error "Failed to start service: $service"
+        return 1
     fi
-    if [ -z "$ip" ]; then
-        ip=$(curl -s icanhazip.com 2>/dev/null)
+}
+
+service_stop() {
+    local service="$1"
+    if systemctl stop "$service" 2>/dev/null; then
+        log_success "Stopped service: $service"
+        return 0
+    else
+        log_error "Failed to stop service: $service"
+        return 1
     fi
-    if [ -z "$ip" ]; then
-        ip="Unknown"
+}
+
+service_restart() {
+    local service="$1"
+    if systemctl restart "$service" 2>/dev/null; then
+        log_success "Restarted service: $service"
+        return 0
+    else
+        log_error "Failed to restart service: $service"
+        return 1
     fi
+}
+
+service_enable() {
+    local service="$1"
+    if systemctl enable "$service" 2>/dev/null; then
+        log_success "Enabled service: $service"
+        return 0
+    else
+        log_error "Failed to enable service: $service"
+        return 1
+    fi
+}
+
+# User input validation
+validate_username() {
+    local username="$1"
+    if [[ ! "$username" =~ ^[a-zA-Z][a-zA-Z0-9_-]{2,31}$ ]]; then
+        log_error "Invalid username format. Must start with letter, 3-32 chars, alphanumeric/underscore/dash only."
+        return 1
+    fi
+    return 0
+}
+
+validate_port() {
+    local port="$1"
+    if [[ ! "$port" =~ ^[0-9]+$ ]] || [ "$port" -lt 1 ] || [ "$port" -gt 65535 ]; then
+        log_error "Invalid port number. Must be between 1-65535."
+        return 1
+    fi
+    return 0
+}
+
+validate_ip() {
+    local ip="$1"
+    if [[ ! "$ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+        log_error "Invalid IP address format."
+        return 1
+    fi
+    
+    IFS='.' read -ra ADDR <<< "$ip"
+    for i in "${ADDR[@]}"; do
+        if [ "$i" -gt 255 ]; then
+            log_error "Invalid IP address: octet out of range."
+            return 1
+        fi
+    done
+    return 0
+}
+
+# Network utilities
+check_port_available() {
+    local port="$1"
+    if ss -tuln | grep -q ":$port "; then
+        log_warn "Port $port is already in use"
+        return 1
+    fi
+    return 0
+}
+
+get_external_ip() {
+    local ip
+    ip=$(curl -s --max-time 5 ifconfig.me 2>/dev/null) || \
+    ip=$(curl -s --max-time 5 icanhazip.com 2>/dev/null) || \
+    ip=$(curl -s --max-time 5 ipecho.net/plain 2>/dev/null) || \
+    ip="Unknown"
     echo "$ip"
 }
 
-# Check if service is running
-is_service_running() {
-    local service_name=$1
-    systemctl is-active --quiet "$service_name"
-}
-
-# Get service status
-get_service_status() {
-    local service_name=$1
-    if is_service_running "$service_name"; then
-        echo -e "${GREEN}RUNNING${NC}"
-    else
-        echo -e "${RED}STOPPED${NC}"
-    fi
-}
-
-# Check if port is open
-is_port_open() {
-    local port=$1
-    netstat -tuln | grep -q ":$port "
-}
-
-# Get port status
-get_port_status() {
-    local port=$1
-    if is_port_open "$port"; then
-        echo -e "${GREEN}OPEN${NC}"
-    else
-        echo -e "${RED}CLOSED${NC}"
-    fi
-}
-
-# Generate random password
-generate_password() {
-    local length=${1:-16}
-    tr -dc 'A-Za-z0-9!"#$%&'\''()*+,-./:;<=>?@[\]^_`{|}~' </dev/urandom | head -c "$length"
-}
-
-# Generate random username
-generate_username() {
-    local prefix=${1:-"user"}
-    local suffix=$(tr -dc 'a-z0-9' </dev/urandom | head -c 6)
-    echo "${prefix}${suffix}"
-}
-
-# Validate IP address
-validate_ip() {
-    local ip=$1
-    if [[ $ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
-        return 0
-    else
-        return 1
-    fi
-}
-
-# Validate domain name
-validate_domain() {
-    local domain=$1
-    if [[ $domain =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$ ]]; then
-        return 0
-    else
-        return 1
-    fi
-}
-
-# Validate port number
-validate_port() {
-    local port=$1
-    if [[ $port =~ ^[0-9]+$ ]] && [ "$port" -ge 1 ] && [ "$port" -le 65535 ]; then
-        return 0
-    else
-        return 1
-    fi
-}
-
-# Check if user exists
-user_exists() {
-    local username=$1
-    id "$username" &>/dev/null
-}
-
-# Check if command exists
-command_exists() {
-    local cmd=$1
-    command -v "$cmd" &>/dev/null
-}
-
-# Get system information
-get_system_info() {
-    echo -e "${CYAN}System Information:${NC}"
-    echo -e "  OS: $(lsb_release -d | cut -f2-)"
-    echo -e "  Kernel: $(uname -r)"
-    echo -e "  Architecture: $(uname -m)"
-    echo -e "  CPU: $(nproc) cores"
-    echo -e "  Memory: $(free -h | grep '^Mem:' | awk '{print $2}')"
-    echo -e "  Disk: $(df -h / | tail -1 | awk '{print $2}')"
-    echo -e "  Load: $(uptime | awk -F'load average:' '{print $2}')"
-}
-
-# Get network information
-get_network_info() {
-    echo -e "${CYAN}Network Information:${NC}"
-    echo -e "  Public IP: $(get_public_ip)"
-    echo -e "  Hostname: $(hostname)"
-    echo -e "  DNS: $(cat /etc/resolv.conf | grep nameserver | head -1 | awk '{print $2}')"
-    echo -e "  Default Gateway: $(ip route | grep default | awk '{print $3}')"
-}
-
-# Progress bar function
-show_progress() {
-    local duration=$1
-    local message=$2
-    local bar_length=40
+# File operations
+backup_file() {
+    local file="$1"
+    local backup_dir="$2"
     
-    for ((i=0; i<=duration; i++)); do
-        local progress=$((i * bar_length / duration))
-        local bar=""
-        
-        for ((j=0; j<bar_length; j++)); do
-            if [ $j -lt $progress ]; then
-                bar+="█"
-            else
-                bar+="░"
-            fi
-        done
-        
-        local percentage=$((i * 100 / duration))
-        printf "\r${message} [${GREEN}%s${NC}] %d%%" "$bar" "$percentage"
-        sleep 1
-    done
+    if [ ! -f "$file" ]; then
+        log_error "File not found: $file"
+        return 1
+    fi
     
-    echo
+    ensure_directory "$backup_dir"
+    local timestamp=$(date +%Y%m%d_%H%M%S)
+    local backup_path="$backup_dir/$(basename "$file").backup.$timestamp"
+    
+    if cp "$file" "$backup_path"; then
+        log_success "Backed up $file to $backup_path"
+        echo "$backup_path"
+        return 0
+    else
+        log_error "Failed to backup $file"
+        return 1
+    fi
 }
 
-# Spinner function
+# Configuration management
+read_config() {
+    local config_file="$1"
+    local key="$2"
+    
+    if [ ! -f "$config_file" ]; then
+        log_error "Configuration file not found: $config_file"
+        return 1
+    fi
+    
+    grep "^$key=" "$config_file" | cut -d'=' -f2- | tr -d '"'
+}
+
+write_config() {
+    local config_file="$1"
+    local key="$2"
+    local value="$3"
+    
+    if [ ! -f "$config_file" ]; then
+        touch "$config_file"
+    fi
+    
+    # Remove existing key
+    sed -i "/^$key=/d" "$config_file"
+    # Add new key=value
+    echo "$key=\"$value\"" >> "$config_file"
+}
+
+# Progress display
 show_spinner() {
     local pid=$1
-    local message=$2
     local delay=0.1
     local spinstr='|/-\'
     
     while [ "$(ps a | awk '{print $1}' | grep $pid)" ]; do
         local temp=${spinstr#?}
-        printf " [%c] %s" "$spinstr" "$message"
+        printf " [%c]  " "$spinstr"
         local spinstr=$temp${spinstr%"$temp"}
         sleep $delay
         printf "\b\b\b\b\b\b"
-        for ((i=0; i<${#message}; i++)); do
-            printf "\b"
-        done
     done
     printf "    \b\b\b\b"
 }
 
-# Confirmation prompt
-confirm() {
-    local message=$1
-    local default=${2:-"n"}
+# SSH key management
+generate_ssh_key() {
+    local username="$1"
+    local key_type="$2"
+    local key_comment="$3"
     
-    if [ "$default" = "y" ]; then
-        local prompt="${message} [Y/n]: "
-    else
-        local prompt="${message} [y/N]: "
+    local user_home="/home/$username"
+    if [ "$username" = "root" ]; then
+        user_home="/root"
     fi
     
-    read -p "$prompt" response
+    local ssh_dir="$user_home/.ssh"
+    ensure_directory "$ssh_dir"
     
-    if [ -z "$response" ]; then
-        response=$default
+    local key_file="$ssh_dir/id_$key_type"
+    
+    if [ -f "$key_file" ]; then
+        log_warn "SSH key already exists for $username"
+        return 1
     fi
     
-    case "$response" in
-        [yY]|[yY][eE][sS]) return 0 ;;
-        *) return 1 ;;
+    ssh-keygen -t "$key_type" -f "$key_file" -C "$key_comment" -N ""
+    chown -R "$username:$username" "$ssh_dir"
+    chmod 700 "$ssh_dir"
+    chmod 600 "$key_file"
+    chmod 644 "$key_file.pub"
+    
+    log_success "Generated SSH key for $username"
+    echo "$key_file.pub"
+}
+
+# System optimization
+optimize_system_limits() {
+    local limits_file="/etc/security/limits.conf"
+    
+    # Backup current limits
+    backup_file "$limits_file" "/opt/mastermind/backups"
+    
+    # Add optimized limits
+    cat >> "$limits_file" << 'EOF'
+
+# Mastermind VPS Toolkit - Optimized Limits
+* soft nofile 65536
+* hard nofile 65536
+* soft nproc 32768
+* hard nproc 32768
+root soft nofile 65536
+root hard nofile 65536
+EOF
+
+    log_success "Applied system limit optimizations"
+}
+
+# Monitoring functions
+get_cpu_cores() {
+    nproc
+}
+
+get_total_memory() {
+    free -h | awk '/^Mem:/ {print $2}'
+}
+
+get_disk_space() {
+    df -h / | awk 'NR==2{print $2}'
+}
+
+get_network_interface() {
+    ip route | grep default | awk '{print $5}' | head -1
+}
+
+# QR Code generation helper
+generate_qr_text() {
+    local text="$1"
+    local size="${2:-medium}"
+    
+    if ! check_command qrencode; then
+        log_error "QR code generation requires qrencode package"
+        return 1
+    fi
+    
+    case "$size" in
+        small) qrencode -t ansiutf8 -s 1 "$text" ;;
+        medium) qrencode -t ansiutf8 -s 2 "$text" ;;
+        large) qrencode -t ansiutf8 -s 3 "$text" ;;
+        *) qrencode -t ansiutf8 -s 2 "$text" ;;
     esac
 }
 
-# Input validation
-get_input() {
-    local prompt=$1
-    local validator=$2
-    local default=$3
-    local value
+# Firewall helpers
+ufw_allow_port() {
+    local port="$1"
+    local protocol="${2:-tcp}"
+    local comment="$3"
     
-    while true; do
-        if [ -n "$default" ]; then
-            read -p "$prompt [$default]: " value
-            if [ -z "$value" ]; then
-                value=$default
-            fi
-        else
-            read -p "$prompt: " value
-        fi
-        
-        if [ -n "$validator" ]; then
-            if $validator "$value"; then
-                echo "$value"
-                return 0
-            else
-                log_error "Invalid input. Please try again."
-            fi
-        else
-            echo "$value"
-            return 0
-        fi
-    done
-}
-
-# File backup function
-backup_file() {
-    local file=$1
-    local backup_dir=${2:-"/opt/mastermind/backup"}
+    if [ -n "$comment" ]; then
+        ufw allow "$port/$protocol" comment "$comment"
+    else
+        ufw allow "$port/$protocol"
+    fi
     
-    if [ -f "$file" ]; then
-        local filename=$(basename "$file")
-        local timestamp=$(date +%Y%m%d_%H%M%S)
-        local backup_path="$backup_dir/${filename}.${timestamp}.bak"
-        
-        mkdir -p "$backup_dir"
-        cp "$file" "$backup_path"
-        log_info "Backed up $file to $backup_path"
-    fi
+    log_success "Allowed port $port/$protocol in firewall"
 }
 
-# Service management functions
-start_service() {
-    local service_name=$1
-    log_info "Starting $service_name service..."
-    systemctl start "$service_name"
-    if is_service_running "$service_name"; then
-        log_info "$service_name service started successfully"
-    else
-        log_error "Failed to start $service_name service"
-        return 1
-    fi
+ufw_deny_port() {
+    local port="$1"
+    local protocol="${2:-tcp}"
+    
+    ufw deny "$port/$protocol"
+    log_success "Denied port $port/$protocol in firewall"
 }
 
-stop_service() {
-    local service_name=$1
-    log_info "Stopping $service_name service..."
-    systemctl stop "$service_name"
-    if ! is_service_running "$service_name"; then
-        log_info "$service_name service stopped successfully"
-    else
-        log_error "Failed to stop $service_name service"
-        return 1
-    fi
+# Error handling
+handle_error() {
+    local exit_code=$?
+    local line_number=$1
+    
+    log_error "An error occurred on line $line_number (exit code: $exit_code)"
+    exit $exit_code
 }
 
-restart_service() {
-    local service_name=$1
-    log_info "Restarting $service_name service..."
-    systemctl restart "$service_name"
-    if is_service_running "$service_name"; then
-        log_info "$service_name service restarted successfully"
-    else
-        log_error "Failed to restart $service_name service"
-        return 1
-    fi
-}
+# Set error trap
+trap 'handle_error ${LINENO}' ERR
 
-enable_service() {
-    local service_name=$1
-    log_info "Enabling $service_name service..."
-    systemctl enable "$service_name"
-    log_info "$service_name service enabled for auto-start"
-}
-
-disable_service() {
-    local service_name=$1
-    log_info "Disabling $service_name service..."
-    systemctl disable "$service_name"
-    log_info "$service_name service disabled from auto-start"
-}
-
-# Wait for keypress
-wait_for_key() {
-    local message=${1:-"Press any key to continue..."}
-    read -n 1 -s -r -p "$message"
-    echo
-}
-
-# Clean up temporary files
-cleanup() {
+# Cleanup functions
+cleanup_temp_files() {
     local temp_dir="/tmp/mastermind"
     if [ -d "$temp_dir" ]; then
         rm -rf "$temp_dir"
-        log_debug "Cleaned up temporary directory: $temp_dir"
+        log_info "Cleaned up temporary files"
     fi
 }
 
-# Trap cleanup on exit
-trap cleanup EXIT
+cleanup_old_logs() {
+    local log_dir="$1"
+    local days="${2:-7}"
+    
+    if [ -d "$log_dir" ]; then
+        find "$log_dir" -name "*.log" -mtime +$days -delete
+        log_info "Cleaned up logs older than $days days"
+    fi
+}
+
+# Service dependency checking
+check_service_dependencies() {
+    local service="$1"
+    
+    case "$service" in
+        "python-proxy")
+            check_command python3 || return 1
+            check_command pip3 || return 1
+            ;;
+        "v2ray")
+            check_command curl || return 1
+            ;;
+        "nginx")
+            check_command nginx || return 1
+            ;;
+        *)
+            log_warn "No dependency check defined for service: $service"
+            ;;
+    esac
+    
+    return 0
+}
+
+# Auto-completion helpers
+get_available_users() {
+    cut -d: -f1 /etc/passwd | grep -v -E '^(root|daemon|bin|sys|sync|games|man|lp|mail|news|uucp|proxy|www-data|backup|list|irc|gnats|nobody|_apt)$'
+}
+
+get_available_services() {
+    systemctl list-unit-files --type=service | awk '{print $1}' | grep -E '^(python-proxy|tcp-bypass|v2ray|nginx|fail2ban|ufw)'
+}
+
+# Time and date helpers
+get_timestamp() {
+    date '+%Y-%m-%d %H:%M:%S'
+}
+
+get_date_filename() {
+    date '+%Y%m%d_%H%M%S'
+}
+
+# Version checking
+check_version() {
+    local component="$1"
+    
+    case "$component" in
+        "mastermind")
+            echo "2.0.0"
+            ;;
+        "python")
+            python3 --version 2>/dev/null | cut -d' ' -f2
+            ;;
+        "kernel")
+            uname -r
+            ;;
+        *)
+            echo "Unknown"
+            ;;
+    esac
+}
+
+# Initialize helper environment
+init_helpers() {
+    # Ensure log directory exists
+    ensure_directory "$LOG_DIR"
+    
+    # Set proper permissions
+    chmod 755 "$LOG_DIR"
+    
+    # Initialize log file
+    touch "$LOG_DIR/mastermind.log"
+    chmod 644 "$LOG_DIR/mastermind.log"
+    
+    log_info "Helper functions initialized"
+}
+
+# Auto-initialize when sourced
+if [ "${BASH_SOURCE[0]}" != "${0}" ]; then
+    init_helpers
+fi
