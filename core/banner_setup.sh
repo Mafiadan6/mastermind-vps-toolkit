@@ -30,7 +30,7 @@ EOF
     
     # Update SSH configuration
     if ! grep -q "Banner /etc/ssh/mastermind_banner" /etc/ssh/sshd_config; then
-        backup_file /etc/ssh/sshd_config
+        backup_file /etc/ssh/sshd_config /opt/mastermind/backups
         echo "Banner /etc/ssh/mastermind_banner" >> /etc/ssh/sshd_config
         systemctl restart sshd
         log_info "SSH banner configured and SSH service restarted"
