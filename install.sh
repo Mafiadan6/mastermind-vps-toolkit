@@ -118,7 +118,8 @@ install_dependencies() {
         openssh-server \
         nginx \
         certbot \
-        python3-certbot-nginx
+        python3-certbot-nginx \
+        uuid-runtime
     
     # Install Python packages
     pip3 install --upgrade pip
@@ -168,13 +169,19 @@ create_directories() {
     
     # Create subdirectories
     mkdir -p $INSTALL_DIR/{core,protocols,network,security,branding,users}
+    mkdir -p $INSTALL_DIR/{qr_codes,backups,configs}
     
     # Create log directories
     mkdir -p /var/log/mastermind
     
+    # Create config directories
+    mkdir -p /etc/mastermind
+    
     # Set permissions
     chown -R root:root $INSTALL_DIR
     chmod -R 755 $INSTALL_DIR
+    chown proxy-user:proxy-user /var/log/mastermind
+    chmod 755 /var/log/mastermind
     
     log "Directory structure created"
 }
@@ -252,8 +259,14 @@ After=network.target
 
 [Service]
 Type=simple
-User=proxy-user
+User=root
+Group=root
 WorkingDirectory=/opt/mastermind/protocols
+Environment=PYTHONPATH=/opt/mastermind/protocols
+Environment=SOCKS_PORT=8080
+Environment=HTTP_PROXY_PORT=8888
+Environment=WEBSOCKET_PORT=8443
+Environment=LOG_LEVEL=INFO
 ExecStart=/usr/bin/python3 /opt/mastermind/protocols/python_proxy.py
 Restart=always
 RestartSec=10
@@ -268,14 +281,18 @@ EOF
     cat > /etc/systemd/system/tcp-bypass.service << 'EOF'
 [Unit]
 Description=Mastermind TCP Bypass Service
-After=network.target
+After=network.target python-proxy.service
+Requires=python-proxy.service
 
 [Service]
-Type=simple
-User=proxy-user
+Type=forking
+User=root
+Group=root
 WorkingDirectory=/opt/mastermind/protocols
-ExecStart=/opt/mastermind/protocols/tcp_bypass.sh start
-ExecStop=/opt/mastermind/protocols/tcp_bypass.sh stop
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/opt/mastermind/protocols/tcp_bypass.sh start_service
+ExecStop=/opt/mastermind/protocols/tcp_bypass.sh stop_service
+ExecReload=/opt/mastermind/protocols/tcp_bypass.sh reload_service
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -463,6 +480,14 @@ verify_installation() {
 # Post-installation setup
 post_install_setup() {
     log "Running post-installation setup..."
+    
+    # Create log files with proper permissions
+    touch /var/log/mastermind/python-proxy.log
+    touch /var/log/mastermind/tcp-bypass.log
+    chown proxy-user:proxy-user /var/log/mastermind/*.log
+    
+    # Reload systemd daemon
+    systemctl daemon-reload
     
     # Enable and start services
     systemctl enable python-proxy
