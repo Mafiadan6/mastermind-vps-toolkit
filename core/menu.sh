@@ -274,40 +274,44 @@ protocol_management_menu() {
         echo -e "╠═══════════════════════════════════════════════════════════════════════════════╣${COLORS[RESET]}"
         echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}                                                                               ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
         
-        # Protocol options with status indicators
+        # Protocol options with live status indicators
         local python_status=$(get_service_status "python-proxy")
+        local v2ray_status=$(get_service_status "v2ray")
         local ssh_status=$(get_service_status "ssh")
         local tcp_status=$(get_service_status "tcp-bypass")
+        local badvpn_status=$(get_service_status "badvpn")
+        local squid_status=$(get_service_status "squid")
         
-        echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}  ${COLORS[BRIGHT_CYAN]}[1]${COLORS[RESET]} ${COLORS[BRIGHT_WHITE]}Python Proxy Suite${COLORS[RESET]}        Status: $python_status                   ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
-        echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}      ${COLORS[GRAY]}SOCKS5, HTTP, WebSocket with custom responses${COLORS[RESET]}                    ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
+        echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}                                                                               ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
+        echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}  ${COLORS[BRIGHT_CYAN]}[1]${COLORS[RESET]} ${COLORS[BRIGHT_WHITE]}Python Proxy Suite${COLORS[RESET]}        Status: $python_status          ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
+        echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}      ${COLORS[GRAY]}SOCKS5, HTTP, WebSocket proxies${COLORS[RESET]}                                 ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
         echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}                                                                               ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
         
-        echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}  ${COLORS[BRIGHT_CYAN]}[2]${COLORS[RESET]} ${COLORS[BRIGHT_WHITE]}V2Ray Manager${COLORS[RESET]}             Status: ${COLORS[GRAY]}○ Not Configured${COLORS[RESET]}           ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
-        echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}      ${COLORS[GRAY]}VLESS, VMESS, Trojan protocols with TLS${COLORS[RESET]}                         ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
+        echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}  ${COLORS[BRIGHT_CYAN]}[2]${COLORS[RESET]} ${COLORS[BRIGHT_WHITE]}V2Ray Manager${COLORS[RESET]}             Status: $v2ray_status          ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
+        echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}      ${COLORS[GRAY]}VLESS, VMESS protocols with TLS${COLORS[RESET]}                                 ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
         echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}                                                                               ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
         
-        echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}  ${COLORS[BRIGHT_CYAN]}[3]${COLORS[RESET]} ${COLORS[BRIGHT_WHITE]}SSH Ecosystem${COLORS[RESET]}             Status: $ssh_status                      ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
+        echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}  ${COLORS[BRIGHT_CYAN]}[3]${COLORS[RESET]} ${COLORS[BRIGHT_WHITE]}SSH Ecosystem${COLORS[RESET]}             Status: $ssh_status             ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
         echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}      ${COLORS[GRAY]}SSH, Dropbear, SSH-UDP tunneling${COLORS[RESET]}                               ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
         echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}                                                                               ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
         
-        echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}  ${COLORS[BRIGHT_CYAN]}[4]${COLORS[RESET]} ${COLORS[BRIGHT_WHITE]}TCP Bypass Proxy${COLORS[RESET]}          Status: $tcp_status                      ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
-        echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}      ${COLORS[GRAY]}High-performance TCP proxy and bypass${COLORS[RESET]}                          ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
+        echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}  ${COLORS[BRIGHT_CYAN]}[4]${COLORS[RESET]} ${COLORS[BRIGHT_WHITE]}TCP Bypass Proxy${COLORS[RESET]}          Status: $tcp_status             ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
+        echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}      ${COLORS[GRAY]}High-performance TCP proxy bypass${COLORS[RESET]}                              ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
         echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}                                                                               ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
         
-        echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}  ${COLORS[BRIGHT_CYAN]}[5]${COLORS[RESET]} ${COLORS[BRIGHT_WHITE]}BadVPN Integration${COLORS[RESET]}        Status: ${COLORS[GRAY]}○ Not Configured${COLORS[RESET]}           ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
-        echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}      ${COLORS[GRAY]}UDP over TCP tunneling solution${COLORS[RESET]}                                ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
+        echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}  ${COLORS[BRIGHT_CYAN]}[5]${COLORS[RESET]} ${COLORS[BRIGHT_WHITE]}BadVPN Integration${COLORS[RESET]}        Status: $badvpn_status          ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
+        echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}      ${COLORS[GRAY]}UDP over TCP tunneling${COLORS[RESET]}                                         ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
         echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}                                                                               ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
         
-        echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}  ${COLORS[BRIGHT_CYAN]}[6]${COLORS[RESET]} ${COLORS[BRIGHT_WHITE]}Squid Proxy Setup${COLORS[RESET]}         Status: ${COLORS[GRAY]}○ Not Configured${COLORS[RESET]}           ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
-        echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}      ${COLORS[GRAY]}HTTP/HTTPS caching proxy server${COLORS[RESET]}                                ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
+        echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}  ${COLORS[BRIGHT_CYAN]}[6]${COLORS[RESET]} ${COLORS[BRIGHT_WHITE]}Squid Proxy Setup${COLORS[RESET]}         Status: $squid_status           ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
+        echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}      ${COLORS[GRAY]}HTTP/HTTPS caching proxy${COLORS[RESET]}                                        ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
         echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}                                                                               ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
         
         echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}  ${COLORS[BRIGHT_GREEN]}[0]${COLORS[RESET]} ${COLORS[GREEN]}← Back to Main Menu${COLORS[RESET]}                                                ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
         echo -e "${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}                                                                               ${COLORS[BRIGHT_PURPLE]}║${COLORS[RESET]}"
         echo -e "${COLORS[BOLD]}${COLORS[BRIGHT_PURPLE]}╚═══════════════════════════════════════════════════════════════════════════════╝${COLORS[RESET]}"
         echo
-        echo -e "${COLORS[BOLD]}${COLORS[BRIGHT_WHITE]}Select a protocol to configure:${COLORS[RESET]} "
+        echo -e "${COLORS[BOLD]}${COLORS[BRIGHT_WHITE]}Select protocol [1-6] or [0] to return:${COLORS[RESET]} "
         
         read -r choice
         case "$choice" in
@@ -369,10 +373,10 @@ quick_actions_menu() {
 # Function stubs for menu actions
 manage_python_proxy() {
     echo -e "${COLORS[BRIGHT_BLUE]}🔧 Managing Python Proxy Suite...${COLORS[RESET]}"
-    if [ -f "$MASTERMIND_HOME/protocols/python_proxy.py" ]; then
-        python3 "$MASTERMIND_HOME/protocols/python_proxy.py"
+    if [ -f "$MASTERMIND_HOME/protocols/proxy_manager.sh" ]; then
+        bash "$MASTERMIND_HOME/protocols/proxy_manager.sh"
     else
-        echo -e "${COLORS[BRIGHT_RED]}❌ Python proxy script not found${COLORS[RESET]}"
+        echo -e "${COLORS[BRIGHT_RED]}❌ Proxy manager script not found${COLORS[RESET]}"
     fi
     read -p "Press Enter to continue..."
 }
@@ -423,6 +427,16 @@ manage_squid_proxy() {
         bash "$MASTERMIND_HOME/protocols/squid_proxy.sh"
     else
         echo -e "${COLORS[BRIGHT_RED]}❌ Squid proxy script not found${COLORS[RESET]}"
+    fi
+    read -p "Press Enter to continue..."
+}
+
+manage_domain_ssl() {
+    echo -e "${COLORS[BRIGHT_BLUE]}🌐 Managing Domain & SSL...${COLORS[RESET]}"
+    if [ -f "$MASTERMIND_HOME/protocols/domain_manager.sh" ]; then
+        bash "$MASTERMIND_HOME/protocols/domain_manager.sh"
+    else
+        echo -e "${COLORS[BRIGHT_RED]}❌ Domain manager script not found${COLORS[RESET]}"
     fi
     read -p "Press Enter to continue..."
 }
@@ -614,10 +628,7 @@ main() {
                 echo -e "${COLORS[BRIGHT_BLUE]}🎨 Branding & QR Codes features coming soon...${COLORS[RESET]}"
                 read -p "Press Enter to continue..."
                 ;;
-            7) 
-                echo -e "${COLORS[BRIGHT_BLUE]}🌐 Domain & SSL features coming soon...${COLORS[RESET]}"
-                read -p "Press Enter to continue..."
-                ;;
+            7) manage_domain_ssl ;;
             8) 
                 echo -e "${COLORS[BRIGHT_BLUE]}⚙️ System Tools features coming soon...${COLORS[RESET]}"
                 read -p "Press Enter to continue..."
