@@ -7,8 +7,8 @@ source /opt/mastermind/core/helpers.sh
 source /opt/mastermind/core/config.cfg
 
 # V2Ray configuration
-V2RAY_CONFIG_DIR="/opt/mastermind/config"
-V2RAY_CONFIG_FILE="$V2RAY_CONFIG_DIR/v2ray.json"
+V2RAY_CONFIG_DIR="/etc/v2ray"
+V2RAY_CONFIG_FILE="$V2RAY_CONFIG_DIR/config.json"
 V2RAY_LOG_FILE="/var/log/mastermind/v2ray.log"
 
 # Show V2Ray management menu
@@ -51,13 +51,230 @@ show_v2ray_menu() {
 install_v2ray() {
     log_info "Installing V2Ray..."
     
-    # Check if already installed
-    if command_exists v2ray; then
-        log_warn "V2Ray is already installed"
-        if ! confirm "Reinstall V2Ray?"; then
-            return
+    # Download and install V2Ray
+    if command -v v2ray >/dev/null 2>&1; then
+        log_info "V2Ray is already installed"
+    else
+        # Install V2Ray using official script
+        bash <(curl -L https://raw.githubusercontent.com/v2fly/fhs-install-v2ray/master/install-release.sh)
+        
+        # Create v2ray user if not exists
+        if ! id "v2ray" &>/dev/null; then
+            useradd -r -s /bin/false v2ray
         fi
+        
+        # Create directories
+        mkdir -p /var/log/v2ray
+        mkdir -p /usr/local/etc/v2ray
+        
+        # Set permissions
+        chown v2ray:v2ray /var/log/v2ray
+        chown -R v2ray:v2ray /usr/local/etc/v2ray
+        
+        log_info "V2Ray installation completed"
     fi
+    
+    # Enable and start service
+    systemctl enable v2ray
+    systemctl start v2ray
+    
+    wait_for_key
+}
+
+# Configure VLESS
+configure_vless() {
+    log_info "Configuring VLESS protocol..."
+    
+    # Generate UUID
+    local uuid=$(cat /proc/sys/kernel/random/uuid)
+    local port=${1:-443}
+    local domain=${2:-""}
+    
+    # Create VLESS configuration
+    cat > /usr/local/etc/v2ray/config.json << EOF
+{
+  "log": {
+    "access": "/var/log/v2ray/access.log",
+    "error": "/var/log/v2ray/error.log",
+    "loglevel": "warning"
+  },
+  "inbounds": [
+    {
+      "port": $port,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "id": "$uuid",
+            "flow": "xtls-rprx-vision"
+          }
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "reality",
+        "realitySettings": {
+          "show": false,
+          "dest": "www.microsoft.com:443",
+          "xver": 0,
+          "serverNames": [
+            "www.microsoft.com"
+          ],
+          "privateKey": "$(openssl genpkey -algorithm x25519 | openssl pkey -text -noout | grep priv | cut -d: -f2 | tr -d ' \n')",
+          "shortIds": [
+            "$(openssl rand -hex 8)"
+          ]
+        }
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "protocol": "freedom",
+      "settings": {}
+    }
+  ]
+}
+EOF
+
+    # Save configuration info
+    echo "VLESS Configuration:" > /opt/mastermind/configs/vless_config.txt
+    echo "UUID: $uuid" >> /opt/mastermind/configs/vless_config.txt
+    echo "Port: $port" >> /opt/mastermind/configs/vless_config.txt
+    echo "Protocol: VLESS" >> /opt/mastermind/configs/vless_config.txt
+    echo "Security: Reality" >> /opt/mastermind/configs/vless_config.txt
+    
+    # Restart V2Ray
+    systemctl restart v2ray
+    
+    log_info "VLESS configuration completed"
+    log_info "UUID: $uuid"
+    log_info "Port: $port"
+    
+    wait_for_key
+}
+
+# Configure VMESS  
+configure_vmess() {
+    log_info "Configuring VMESS protocol..."
+    
+    # Generate UUID
+    local uuid=$(cat /proc/sys/kernel/random/uuid)
+    local port=${1:-80}
+    local path=${2:-"/"}
+    
+    # Create VMESS configuration
+    cat > /usr/local/etc/v2ray/config.json << EOF
+{
+  "log": {
+    "access": "/var/log/v2ray/access.log",
+    "error": "/var/log/v2ray/error.log",
+    "loglevel": "warning"
+  },
+  "inbounds": [
+    {
+      "port": $port,
+      "protocol": "vmess",
+      "settings": {
+        "clients": [
+          {
+            "id": "$uuid",
+            "alterId": 0
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "ws",
+        "wsSettings": {
+          "path": "$path"
+        }
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "protocol": "freedom",
+      "settings": {}
+    }
+  ]
+}
+EOF
+
+    # Save configuration info
+    echo "VMESS Configuration:" > /opt/mastermind/configs/vmess_config.txt
+    echo "UUID: $uuid" >> /opt/mastermind/configs/vmess_config.txt
+    echo "Port: $port" >> /opt/mastermind/configs/vmess_config.txt
+    echo "Path: $path" >> /opt/mastermind/configs/vmess_config.txt
+    echo "Protocol: VMESS" >> /opt/mastermind/configs/vmess_config.txt
+    echo "Network: WebSocket" >> /opt/mastermind/configs/vmess_config.txt
+    
+    # Restart V2Ray
+    systemctl restart v2ray
+    
+    log_info "VMESS configuration completed"
+    log_info "UUID: $uuid"
+    log_info "Port: $port"
+    log_info "Path: $path"
+    
+    wait_for_key
+}
+
+# Main V2Ray management function
+main() {
+    case ${1:-"menu"} in
+        "install") install_v2ray ;;
+        "start") systemctl start v2ray ;;
+        "stop") systemctl stop v2ray ;;
+        "restart") systemctl restart v2ray ;;
+        "vless") configure_vless ;;
+        "vmess") configure_vmess ;;
+        "menu"|*)
+            while true; do
+                show_v2ray_menu
+                read -p "Enter your choice [0-9]: " choice
+                
+                case $choice in
+                    1) install_v2ray ;;
+                    2) systemctl restart v2ray ;;
+                    3) systemctl stop v2ray ;;
+                    4) configure_vless ;;
+                    5) configure_vmess ;;
+                    6) configure_websocket ;;
+                    7) generate_client_config ;;
+                    8) view_v2ray_logs ;;
+                    9) advanced_v2ray_settings ;;
+                    0) exit 0 ;;
+                    *) echo -e "${RED}Invalid option. Please try again.${NC}" ; sleep 2 ;;
+                esac
+            done
+            ;;
+    esac
+}
+
+# Missing functions for V2Ray menu
+configure_websocket() {
+    echo "WebSocket configuration - Coming soon"
+    wait_for_key
+}
+
+generate_client_config() {
+    echo "Client config generation - Coming soon"
+    wait_for_key
+}
+
+view_v2ray_logs() {
+    echo "V2Ray logs view - Coming soon"
+    wait_for_key
+}
+
+advanced_v2ray_settings() {
+    echo "Advanced V2Ray settings - Coming soon"
+    wait_for_key
+}
+
+# Run main function
+main "$@"
     
     # Download and install V2Ray
     curl -Ls https://raw.githubusercontent.com/v2fly/fhs-install-v2ray/master/install-release.sh | bash
@@ -83,7 +300,7 @@ install_v2ray() {
     wait_for_key
 }
 
-# Create default V2Ray configuration
+# Create default V2Ray configuration  
 create_default_config() {
     log_info "Creating default V2Ray configuration..."
     
@@ -182,465 +399,3 @@ stop_v2ray() {
     
     wait_for_key
 }
-
-# Configure VLESS
-configure_vless() {
-    echo
-    echo -e "${YELLOW}VLESS Configuration${NC}"
-    echo
-    
-    local uuid=$(get_input "Client UUID (leave empty to generate)" "" "$(uuidgen)")
-    local port=$(get_input "Port" "validate_port" "$V2RAY_PORT")
-    local path=$(get_input "WebSocket Path" "" "/mastermind")
-    local email=$(get_input "Client Email" "" "admin@mastermind.local")
-    
-    # Create VLESS configuration
-    cat > "$V2RAY_CONFIG_FILE" << EOF
-{
-    "log": {
-        "loglevel": "info",
-        "access": "/var/log/mastermind/v2ray-access.log",
-        "error": "/var/log/mastermind/v2ray-error.log"
-    },
-    "inbounds": [
-        {
-            "port": $port,
-            "protocol": "vless",
-            "settings": {
-                "clients": [
-                    {
-                        "id": "$uuid",
-                        "level": 0,
-                        "email": "$email"
-                    }
-                ],
-                "decryption": "none"
-            },
-            "streamSettings": {
-                "network": "ws",
-                "wsSettings": {
-                    "path": "$path"
-                }
-            }
-        }
-    ],
-    "outbounds": [
-        {
-            "protocol": "freedom",
-            "settings": {}
-        }
-    ]
-}
-EOF
-    
-    log_info "VLESS configuration created"
-    log_info "UUID: $uuid"
-    log_info "Port: $port"
-    log_info "Path: $path"
-    
-    if confirm "Restart V2Ray to apply changes?"; then
-        systemctl restart v2ray
-    fi
-    
-    wait_for_key
-}
-
-# Configure VMESS
-configure_vmess() {
-    echo
-    echo -e "${YELLOW}VMESS Configuration${NC}"
-    echo
-    
-    local uuid=$(get_input "Client UUID (leave empty to generate)" "" "$(uuidgen)")
-    local port=$(get_input "Port" "validate_port" "$V2RAY_PORT")
-    local path=$(get_input "WebSocket Path" "" "/mastermind")
-    local email=$(get_input "Client Email" "" "admin@mastermind.local")
-    local alterId=$(get_input "Alter ID" "validate_number" "0")
-    
-    # Create VMESS configuration
-    cat > "$V2RAY_CONFIG_FILE" << EOF
-{
-    "log": {
-        "loglevel": "info",
-        "access": "/var/log/mastermind/v2ray-access.log",
-        "error": "/var/log/mastermind/v2ray-error.log"
-    },
-    "inbounds": [
-        {
-            "port": $port,
-            "protocol": "vmess",
-            "settings": {
-                "clients": [
-                    {
-                        "id": "$uuid",
-                        "level": 0,
-                        "alterId": $alterId,
-                        "email": "$email"
-                    }
-                ]
-            },
-            "streamSettings": {
-                "network": "ws",
-                "wsSettings": {
-                    "path": "$path"
-                }
-            }
-        }
-    ],
-    "outbounds": [
-        {
-            "protocol": "freedom",
-            "settings": {}
-        }
-    ]
-}
-EOF
-    
-    log_info "VMESS configuration created"
-    log_info "UUID: $uuid"
-    log_info "Port: $port"
-    log_info "Path: $path"
-    log_info "Alter ID: $alterId"
-    
-    if confirm "Restart V2Ray to apply changes?"; then
-        systemctl restart v2ray
-    fi
-    
-    wait_for_key
-}
-
-# Configure WebSocket
-configure_websocket() {
-    echo
-    echo -e "${YELLOW}WebSocket Configuration${NC}"
-    echo
-    
-    local path=$(get_input "WebSocket Path" "" "/mastermind")
-    local headers=$(get_input "Custom Headers (optional)" "" "")
-    
-    # Update current configuration
-    if [ -f "$V2RAY_CONFIG_FILE" ]; then
-        # Use jq to update WebSocket settings
-        jq --arg path "$path" '.inbounds[0].streamSettings.wsSettings.path = $path' "$V2RAY_CONFIG_FILE" > /tmp/v2ray_temp.json
-        mv /tmp/v2ray_temp.json "$V2RAY_CONFIG_FILE"
-        
-        log_info "WebSocket configuration updated"
-        log_info "Path: $path"
-        
-        if confirm "Restart V2Ray to apply changes?"; then
-            systemctl restart v2ray
-        fi
-    else
-        log_error "V2Ray configuration file not found"
-    fi
-    
-    wait_for_key
-}
-
-# Generate client configuration
-generate_client_config() {
-    echo
-    echo -e "${YELLOW}Client Configuration Generator${NC}"
-    echo
-    
-    if [ ! -f "$V2RAY_CONFIG_FILE" ]; then
-        log_error "V2Ray configuration file not found"
-        wait_for_key
-        return
-    fi
-    
-    # Extract configuration details
-    local protocol=$(jq -r '.inbounds[0].protocol' "$V2RAY_CONFIG_FILE")
-    local port=$(jq -r '.inbounds[0].port' "$V2RAY_CONFIG_FILE")
-    local uuid=$(jq -r '.inbounds[0].settings.clients[0].id' "$V2RAY_CONFIG_FILE")
-    local path=$(jq -r '.inbounds[0].streamSettings.wsSettings.path' "$V2RAY_CONFIG_FILE")
-    local server_ip=$(get_public_ip)
-    
-    echo -e "${YELLOW}Client Configuration:${NC}"
-    echo
-    echo -e "${CYAN}Protocol:${NC} $protocol"
-    echo -e "${CYAN}Server:${NC} $server_ip"
-    echo -e "${CYAN}Port:${NC} $port"
-    echo -e "${CYAN}UUID:${NC} $uuid"
-    echo -e "${CYAN}Path:${NC} $path"
-    echo
-    
-    # Generate client config JSON
-    cat > /tmp/client_config.json << EOF
-{
-    "server": "$server_ip",
-    "server_port": $port,
-    "uuid": "$uuid",
-    "protocol": "$protocol",
-    "path": "$path",
-    "security": "none",
-    "network": "ws"
-}
-EOF
-    
-    echo -e "${YELLOW}Client configuration saved to: /tmp/client_config.json${NC}"
-    
-    # Generate QR code if available
-    if command_exists qrencode; then
-        local config_string="$protocol://$uuid@$server_ip:$port?path=$path&security=none&type=ws#Mastermind-VPS"
-        qrencode -t UTF8 "$config_string"
-        echo
-        echo -e "${YELLOW}QR Code generated above${NC}"
-    fi
-    
-    wait_for_key
-}
-
-# View logs
-view_logs() {
-    clear
-    echo -e "${CYAN}══════════════════════════════════════════════════════════════════════════════${NC}"
-    echo -e "${WHITE}                               V2RAY LOGS                                     ${NC}"
-    echo -e "${CYAN}══════════════════════════════════════════════════════════════════════════════${NC}"
-    echo
-    
-    echo -e "${YELLOW}Choose log type:${NC}"
-    echo -e "  [1] Service logs (systemd)"
-    echo -e "  [2] Access logs"
-    echo -e "  [3] Error logs"
-    echo -e "  [4] All logs"
-    echo
-    
-    read -p "Enter your choice [1-4]: " log_choice
-    
-    case $log_choice in
-        1) journalctl -u v2ray -f ;;
-        2) tail -f /var/log/mastermind/v2ray-access.log 2>/dev/null || echo "Access log not found" ;;
-        3) tail -f /var/log/mastermind/v2ray-error.log 2>/dev/null || echo "Error log not found" ;;
-        4) 
-            echo -e "${YELLOW}Service logs:${NC}"
-            journalctl -u v2ray -n 20 --no-pager
-            echo
-            echo -e "${YELLOW}Access logs:${NC}"
-            tail -20 /var/log/mastermind/v2ray-access.log 2>/dev/null || echo "Access log not found"
-            echo
-            echo -e "${YELLOW}Error logs:${NC}"
-            tail -20 /var/log/mastermind/v2ray-error.log 2>/dev/null || echo "Error log not found"
-            wait_for_key
-            ;;
-        *) echo -e "${RED}Invalid choice${NC}" ; sleep 2 ;;
-    esac
-}
-
-# Advanced settings
-advanced_settings() {
-    while true; do
-        clear
-        echo -e "${CYAN}══════════════════════════════════════════════════════════════════════════════${NC}"
-        echo -e "${WHITE}                           V2RAY ADVANCED SETTINGS                           ${NC}"
-        echo -e "${CYAN}══════════════════════════════════════════════════════════════════════════════${NC}"
-        echo
-        echo -e "${YELLOW}  [1] Edit Raw Configuration${NC}"
-        echo -e "${YELLOW}  [2] Add Multiple Clients${NC}"
-        echo -e "${YELLOW}  [3] Configure Routing${NC}"
-        echo -e "${YELLOW}  [4] Configure DNS${NC}"
-        echo -e "${YELLOW}  [5] Backup Configuration${NC}"
-        echo -e "${YELLOW}  [6] Restore Configuration${NC}"
-        echo -e "${YELLOW}  [7] Reset to Default${NC}"
-        echo -e "${YELLOW}  [0] Back to V2Ray Menu${NC}"
-        echo
-        echo -e "${CYAN}══════════════════════════════════════════════════════════════════════════════${NC}"
-        
-        read -p "Enter your choice [0-7]: " choice
-        
-        case $choice in
-            1) edit_raw_config ;;
-            2) add_multiple_clients ;;
-            3) configure_routing ;;
-            4) configure_dns ;;
-            5) backup_config ;;
-            6) restore_config ;;
-            7) reset_to_default ;;
-            0) return ;;
-            *) echo -e "${RED}Invalid option. Please try again.${NC}" ; sleep 2 ;;
-        esac
-    done
-}
-
-# Edit raw configuration
-edit_raw_config() {
-    echo
-    echo -e "${YELLOW}Editing V2Ray configuration...${NC}"
-    echo
-    
-    # Backup current configuration
-    backup_file "$V2RAY_CONFIG_FILE"
-    
-    # Edit configuration
-    nano "$V2RAY_CONFIG_FILE"
-    
-    # Validate configuration
-    if validate_config; then
-        if confirm "Configuration is valid. Restart V2Ray to apply changes?"; then
-            systemctl restart v2ray
-        fi
-    else
-        log_error "Invalid configuration. Please check the syntax."
-    fi
-    
-    wait_for_key
-}
-
-# Add multiple clients
-add_multiple_clients() {
-    echo
-    echo -e "${YELLOW}Add Multiple Clients${NC}"
-    echo
-    
-    local count=$(get_input "Number of clients to add" "validate_number" "1")
-    
-    for ((i=1; i<=count; i++)); do
-        local uuid=$(uuidgen)
-        local email=$(get_input "Email for client $i" "" "client$i@mastermind.local")
-        
-        # Add client to configuration using jq
-        jq --arg uuid "$uuid" --arg email "$email" '.inbounds[0].settings.clients += [{"id": $uuid, "level": 0, "email": $email}]' "$V2RAY_CONFIG_FILE" > /tmp/v2ray_temp.json
-        mv /tmp/v2ray_temp.json "$V2RAY_CONFIG_FILE"
-        
-        log_info "Added client $i: $email ($uuid)"
-    done
-    
-    if confirm "Restart V2Ray to apply changes?"; then
-        systemctl restart v2ray
-    fi
-    
-    wait_for_key
-}
-
-# Configure routing
-configure_routing() {
-    echo
-    echo -e "${YELLOW}Routing Configuration${NC}"
-    echo
-    echo -e "${YELLOW}This feature is coming soon...${NC}"
-    echo
-    wait_for_key
-}
-
-# Configure DNS
-configure_dns() {
-    echo
-    echo -e "${YELLOW}DNS Configuration${NC}"
-    echo
-    echo -e "${YELLOW}This feature is coming soon...${NC}"
-    echo
-    wait_for_key
-}
-
-# Backup configuration
-backup_config() {
-    echo
-    log_info "Creating V2Ray configuration backup..."
-    
-    local backup_dir="/opt/mastermind/backup/v2ray"
-    local timestamp=$(date +%Y%m%d_%H%M%S)
-    local backup_file="v2ray_config_${timestamp}.json"
-    
-    mkdir -p "$backup_dir"
-    
-    if [ -f "$V2RAY_CONFIG_FILE" ]; then
-        cp "$V2RAY_CONFIG_FILE" "$backup_dir/$backup_file"
-        log_info "Configuration backup created: $backup_dir/$backup_file"
-    else
-        log_error "V2Ray configuration file not found"
-    fi
-    
-    wait_for_key
-}
-
-# Restore configuration
-restore_config() {
-    echo
-    echo -e "${YELLOW}Available configuration backups:${NC}"
-    echo
-    
-    local backup_dir="/opt/mastermind/backup/v2ray"
-    if [ -d "$backup_dir" ]; then
-        ls -la "$backup_dir"/*.json 2>/dev/null
-        echo
-        
-        local backup_file
-        backup_file=$(get_input "Enter backup filename (without path)" "" "")
-        
-        if [ -f "$backup_dir/$backup_file" ]; then
-            if confirm "Restore configuration from $backup_file?"; then
-                cp "$backup_dir/$backup_file" "$V2RAY_CONFIG_FILE"
-                log_info "Configuration restored from $backup_file"
-                
-                if confirm "Restart V2Ray to apply changes?"; then
-                    systemctl restart v2ray
-                fi
-            fi
-        else
-            log_error "Backup file not found: $backup_file"
-        fi
-    else
-        log_warn "No backup directory found"
-    fi
-    
-    wait_for_key
-}
-
-# Reset to default
-reset_to_default() {
-    if confirm "Reset V2Ray configuration to default?"; then
-        create_default_config
-        log_info "Configuration reset to default"
-        
-        if confirm "Restart V2Ray to apply changes?"; then
-            systemctl restart v2ray
-        fi
-    fi
-    
-    wait_for_key
-}
-
-# Validate configuration
-validate_config() {
-    if [ -f "$V2RAY_CONFIG_FILE" ]; then
-        v2ray test -config "$V2RAY_CONFIG_FILE" >/dev/null 2>&1
-        return $?
-    else
-        return 1
-    fi
-}
-
-# Validate number
-validate_number() {
-    local number=$1
-    if [[ $number =~ ^[0-9]+$ ]]; then
-        return 0
-    else
-        return 1
-    fi
-}
-
-# Main function
-main() {
-    while true; do
-        show_v2ray_menu
-        read -p "Enter your choice [0-9]: " choice
-        
-        case $choice in
-            1) install_v2ray ;;
-            2) start_v2ray ;;
-            3) stop_v2ray ;;
-            4) configure_vless ;;
-            5) configure_vmess ;;
-            6) configure_websocket ;;
-            7) generate_client_config ;;
-            8) view_logs ;;
-            9) advanced_settings ;;
-            0) exit 0 ;;
-            *) echo -e "${RED}Invalid option. Please try again.${NC}" ; sleep 2 ;;
-        esac
-    done
-}
-
-# Run main function
-main "$@"
