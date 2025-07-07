@@ -82,7 +82,8 @@ check_service_status() {
 # Function to check port status
 check_port_status() {
     local port=$1
-    if netstat -tuln 2>/dev/null | grep -q ":$port "; then
+    # Try multiple methods to check port status
+    if ss -tuln 2>/dev/null | grep -q ":$port " || netstat -tuln 2>/dev/null | grep -q ":$port " || lsof -i ":$port" 2>/dev/null >/dev/null; then
         echo -e "${GREEN}●${RESET}"
     else
         echo -e "${RED}●${RESET}"
@@ -91,11 +92,48 @@ check_port_status() {
 
 # Function to get all open ports
 get_all_open_ports() {
-    local ports=$(netstat -tuln 2>/dev/null | grep 'LISTEN' | awk '{print $4}' | cut -d':' -f2 | sort -n | uniq | tr '\n' ',' | sed 's/,$//')
+    local ports=""
+    
+    # Try ss first (modern), then netstat (fallback)
+    if command -v ss >/dev/null 2>&1; then
+        ports=$(ss -tuln 2>/dev/null | grep 'LISTEN' | awk '{print $5}' | cut -d':' -f2 | grep -E '^[0-9]+$' | sort -n | uniq | tr '\n' ',' | sed 's/,$//')
+    fi
+    
+    # Fallback to netstat if ss failed or no ports found
+    if [ -z "$ports" ] && command -v netstat >/dev/null 2>&1; then
+        ports=$(netstat -tuln 2>/dev/null | grep 'LISTEN' | awk '{print $4}' | cut -d':' -f2 | grep -E '^[0-9]+$' | sort -n | uniq | tr '\n' ',' | sed 's/,$//')
+    fi
+    
+    # Fallback to lsof if still no ports found
+    if [ -z "$ports" ] && command -v lsof >/dev/null 2>&1; then
+        ports=$(lsof -i -P -n 2>/dev/null | grep 'LISTEN' | awk '{print $9}' | cut -d':' -f2 | grep -E '^[0-9]+$' | sort -n | uniq | tr '\n' ',' | sed 's/,$//')
+    fi
+    
     if [ -n "$ports" ]; then
         echo -e "${GREEN}$ports${RESET}"
     else
         echo -e "${RED}None detected${RESET}"
+    fi
+}
+
+# Enhanced port status with details
+show_port_details() {
+    local port=$1
+    local description="$2"
+    local status_icon=$(check_port_status "$port")
+    
+    # Get process using the port
+    local process=""
+    if command -v ss >/dev/null 2>&1; then
+        process=$(ss -tlnp 2>/dev/null | grep ":$port " | awk '{print $6}' | cut -d',' -f2 | cut -d'=' -f2 2>/dev/null | head -1)
+    elif command -v netstat >/dev/null 2>&1; then
+        process=$(netstat -tlnp 2>/dev/null | grep ":$port " | awk '{print $7}' | cut -d'/' -f2 2>/dev/null | head -1)
+    fi
+    
+    if [ -n "$process" ]; then
+        echo -e "  ${WHITE}• Port $port${RESET} $status_icon ${description} ${CYAN}($process)${RESET}"
+    else
+        echo -e "  ${WHITE}• Port $port${RESET} $status_icon ${description}"
     fi
 }
 
@@ -132,17 +170,20 @@ show_main_menu() {
     echo -e "${YELLOW}🚀 Live Port Status & Services:${RESET}"
     echo
     echo -e "${CYAN}Core Proxy Suite:${RESET} $(check_service_status 'python-proxy')"
-    echo -e "  ${WHITE}• SOCKS5 Proxy (Port 1080)${RESET}     $(check_port_status 1080) - Standard proxy for apps & browsers"
-    echo -e "  ${WHITE}• WebSocket Tunnel (Port 8080)${RESET} $(check_port_status 8080) - For NPV Tunnel, HTTP Injector, etc."
-    echo -e "  ${WHITE}• HTTP Proxy (Port 8888)${RESET}      $(check_port_status 8888) - Web browser proxy with CONNECT support"
+    show_port_details 1080 "SOCKS5 Proxy - Standard proxy for apps & browsers"
+    show_port_details 8080 "WebSocket Tunnel - For NPV Tunnel, HTTP Injector, etc."
+    show_port_details 8888 "HTTP Proxy - Web browser proxy with CONNECT support"
     echo
     echo -e "${CYAN}Server Response Ports (MasterMind Branded):${RESET}"
-    echo -e "  ${WHITE}• Port 9000${RESET} $(check_port_status 9000) - Dropbear SSH simulation  ${WHITE}• Port 9001${RESET} $(check_port_status 9001) - Custom MasterMind response"
-    echo -e "  ${WHITE}• Port 9002${RESET} $(check_port_status 9002) - HTTP/1.1 101 response    ${WHITE}• Port 9003${RESET} $(check_port_status 9003) - OpenSSH simulation"
+    show_port_details 9000 "Dropbear SSH simulation"
+    show_port_details 9001 "Custom MasterMind response (recommended)"
+    show_port_details 9002 "HTTP/1.1 101 response"
+    show_port_details 9003 "OpenSSH simulation"
     echo
-    echo -e "${CYAN}VPS Protocols:${RESET}"
-    echo -e "  ${WHITE}• V2Ray VLESS${RESET} $(check_service_status 'v2ray') ${GREEN}[Port 80]${RESET} $(check_port_status 80)   ${WHITE}• SSH TLS${RESET} $(check_service_status 'ssh') ${GREEN}[Port 443]${RESET} $(check_port_status 443)"
-    echo -e "  ${WHITE}• Dropbear SSH${RESET} $(check_service_status 'dropbear') ${GREEN}[Ports 444-445]${RESET} $(check_port_status 444) $(check_port_status 445)"
+    echo -e "${CYAN}VPS Protocol Services:${RESET}"
+    echo -e "  ${WHITE}• V2Ray VLESS${RESET} $(check_service_status 'v2ray') ${GREEN}[Port 80]${RESET} $(check_port_status 80) - WebSocket non-TLS"
+    echo -e "  ${WHITE}• SSH TLS${RESET} $(check_service_status 'ssh') ${GREEN}[Port 443]${RESET} $(check_port_status 443) - SSL encrypted SSH"
+    echo -e "  ${WHITE}• Dropbear SSH${RESET} $(check_service_status 'dropbear') ${GREEN}[Ports 444-445]${RESET} $(check_port_status 444) $(check_port_status 445) - Alternative SSH"
     echo
     echo -e "${CYAN}📊 All Open Ports:${RESET} $(get_all_open_ports)"
     echo
@@ -792,16 +833,26 @@ show_port_mapping_info() {
     case $choice in
         1) 
             echo "Testing proxy services..."
-            if [ -f "test_proxy_setup.py" ]; then
+            if [ -f "$MASTERMIND_HOME/test_proxy_setup.py" ]; then
+                python3 "$MASTERMIND_HOME/test_proxy_setup.py"
+            elif [ -f "test_proxy_setup.py" ]; then
                 python3 test_proxy_setup.py
             else
-                echo "Running basic port tests..."
-                for port in 1080 8080 8888 9000 9001 9002 9003; do
-                    if netstat -tuln | grep -q ":$port "; then
-                        echo -e "  Port $port: ${GREEN}LISTENING${RESET}"
-                    else
-                        echo -e "  Port $port: ${RED}CLOSED${RESET}"
-                    fi
+                echo "Running comprehensive port tests..."
+                echo
+                echo -e "${YELLOW}Proxy Suite Ports:${RESET}"
+                for port in 1080 8080 8888; do
+                    show_port_details "$port" "$(case $port in 1080) echo 'SOCKS5 Proxy';; 8080) echo 'WebSocket Tunnel';; 8888) echo 'HTTP Proxy';; esac)"
+                done
+                echo
+                echo -e "${YELLOW}Response Ports:${RESET}"
+                for port in 9000 9001 9002 9003; do
+                    show_port_details "$port" "MasterMind Response Port"
+                done
+                echo
+                echo -e "${YELLOW}Protocol Ports:${RESET}"
+                for port in 80 443 444 445; do
+                    show_port_details "$port" "$(case $port in 80) echo 'V2Ray VLESS';; 443) echo 'SSH TLS';; 444|445) echo 'Dropbear SSH';; esac)"
                 done
             fi
             read -p "Press Enter to continue..."
