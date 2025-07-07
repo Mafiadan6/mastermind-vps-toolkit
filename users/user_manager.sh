@@ -26,12 +26,22 @@ show_user_menu() {
     echo
     
     # Show user statistics
-    local total_users=$(grep -c '^[^:]*:[^:]*:[0-9]*:[0-9]*:' /etc/passwd)
-    local shell_users=$(grep -v 'nologin\|false' /etc/passwd | grep -v '^#' | wc -l)
-    local sudo_users=$(getent group sudo | cut -d: -f4 | tr ',' '\n' | grep -v '^$' | wc -l)
+    local total_users=$(getent passwd | wc -l)
+    local regular_users=$(getent passwd | awk -F: '$3 >= 1000 && $3 != 65534' | wc -l)
+    local shell_users=$(getent passwd | awk -F: '$3 >= 1000 && $7 !~ /(nologin|false)/ && $3 != 65534' | wc -l)
+    local sudo_users=0
+    if getent group sudo >/dev/null 2>&1; then
+        local sudo_members=$(getent group sudo | cut -d: -f4)
+        if [ -n "$sudo_members" ]; then
+            sudo_users=$(echo "$sudo_members" | tr ',' '\n' | grep -v '^$' | wc -l)
+        fi
+    fi
+    local ssh_users=$(getent passwd | awk -F: '$3 >= 1000 && $7 == "/bin/bash" && $3 != 65534' | wc -l)
     
     echo -e "${YELLOW}User Statistics:${NC}"
-    echo -e "  Total users: $total_users"
+    echo -e "  Total system users: $total_users"
+    echo -e "  Regular users (UID ≥ 1000): $regular_users"
+    echo -e "  SSH-enabled users: $ssh_users"
     echo -e "  Users with shell access: $shell_users"
     echo -e "  Users with sudo access: $sudo_users"
     
@@ -84,9 +94,9 @@ add_ssh_user() {
     
     echo
     echo -e "${YELLOW}Data Usage Limits (optional):${NC}"
-    local data_limit=$(get_input "Data limit (GB)" "10" "")
-    local days_limit=$(get_input "Account validity (days)" "30" "")
-    local connection_limit=$(get_input "Max concurrent connections" "3" "")
+    local data_limit=$(get_input "Data limit (GB)" "" "10")
+    local days_limit=$(get_input "Account validity (days)" "" "30")
+    local connection_limit=$(get_input "Max concurrent connections" "" "3")
     
     # Simplified setup - no SSH keys or sudo for mobile users
     local create_ssh_key=false
@@ -513,32 +523,93 @@ list_users() {
     echo -e "${CYAN}══════════════════════════════════════════════════════════════════════════════${NC}"
     echo
     
-    echo -e "${YELLOW}Users with shell access:${NC}"
-    echo
-    
-    printf "%-15s %-10s %-20s %-15s %-10s\n" "Username" "UID" "Home Directory" "Shell" "Status"
-    echo "────────────────────────────────────────────────────────────────────────────────"
-    
-    while IFS=: read -r username _ uid gid comment home shell; do
-        # Skip system users and users with no shell
-        if [[ ! "$shell" =~ (nologin|false) ]] && [ "$uid" -ge 1000 ] || [ "$username" = "root" ]; then
-            local status="Active"
-            local lock_status=$(passwd -S "$username" 2>/dev/null | awk '{print $2}')
-            if [ "$lock_status" = "L" ]; then
-                status="Locked"
-            fi
-            
-            printf "%-15s %-10s %-20s %-15s %-10s\n" "$username" "$uid" "$home" "$(basename $shell)" "$status"
+    # Count different types of users
+    local total_system_users=$(getent passwd | wc -l)
+    local regular_users=$(getent passwd | awk -F: '$3 >= 1000 && $3 != 65534' | wc -l)
+    local ssh_enabled=$(getent passwd | awk -F: '$3 >= 1000 && $7 == "/bin/bash" && $3 != 65534' | wc -l)
+    local sudo_count=0
+    if getent group sudo >/dev/null 2>&1; then
+        local sudo_members=$(getent group sudo | cut -d: -f4)
+        if [ -n "$sudo_members" ]; then
+            sudo_count=$(echo "$sudo_members" | tr ',' '\n' | grep -v '^$' | wc -l)
         fi
-    done < /etc/passwd
+    fi
+    
+    echo -e "${YELLOW}User Summary:${NC}"
+    echo -e "  Total system users: ${WHITE}$total_system_users${NC}"
+    echo -e "  Regular users (created): ${WHITE}$regular_users${NC}"
+    echo -e "  SSH-enabled users: ${WHITE}$ssh_enabled${NC}"
+    echo -e "  Users with sudo access: ${WHITE}$sudo_count${NC}"
+    echo
+    
+    echo -e "${YELLOW}SSH-Enabled Users (UID ≥ 1000):${NC}"
+    echo
+    
+    printf "%-15s %-6s %-25s %-12s %-10s %-15s\n" "Username" "UID" "Home Directory" "Shell" "Status" "Last Login"
+    echo "────────────────────────────────────────────────────────────────────────────────────────────"
+    
+    # List regular users with detailed information
+    getent passwd | awk -F: '$3 >= 1000 && $3 != 65534' | while IFS=: read -r username _ uid gid comment home shell; do
+        local status="Active"
+        local shell_name=$(basename "$shell")
+        local last_login="Never"
+        
+        # Check if account is locked
+        local lock_status=$(passwd -S "$username" 2>/dev/null | awk '{print $2}')
+        if [ "$lock_status" = "L" ]; then
+            status="Locked"
+        fi
+        
+        # Get last login time
+        if command -v lastlog >/dev/null 2>&1; then
+            last_login=$(lastlog -u "$username" 2>/dev/null | tail -1 | awk '{if($2=="Never") print "Never"; else print $4" "$5" "$6}')
+        fi
+        
+        # Color code the status
+        local status_color=""
+        case "$shell_name" in
+            "bash") status_color="${GREEN}SSH-Ready${NC}" ;;
+            "sh") status_color="${YELLOW}Limited${NC}" ;;
+            "nologin"|"false") status_color="${RED}No-Login${NC}" ;;
+            *) status_color="${CYAN}$shell_name${NC}" ;;
+        esac
+        
+        printf "%-15s %-6s %-25s %-12s %-10s %-15s\n" "$username" "$uid" "$home" "$shell_name" "$(echo -e $status_color)" "$last_login"
+    done
     
     echo
-    echo -e "${YELLOW}Sudo users:${NC}"
-    getent group sudo | cut -d: -f4 | tr ',' '\n' | grep -v '^$' | sed 's/^/  /'
+    echo -e "${YELLOW}Users with Sudo Access:${NC}"
+    if [ "$sudo_count" -gt 0 ]; then
+        getent group sudo | cut -d: -f4 | tr ',' '\n' | grep -v '^$' | while read user; do
+            if [ -n "$user" ]; then
+                local user_uid=$(id -u "$user" 2>/dev/null || echo "N/A")
+                printf "  %-15s (UID: %s)\n" "$user" "$user_uid"
+            fi
+        done
+    else
+        echo "  No users with sudo access"
+    fi
     
     echo
-    echo -e "${YELLOW}Currently logged in users:${NC}"
-    who | sed 's/^/  /'
+    echo -e "${YELLOW}Currently Active Sessions:${NC}"
+    if who | grep -q .; then
+        who | while read line; do
+            echo "  $line"
+        done
+    else
+        echo "  No active user sessions"
+    fi
+    
+    echo
+    echo -e "${YELLOW}Recent User Activity:${NC}"
+    if command -v last >/dev/null 2>&1; then
+        echo "  Last 5 logins:"
+        last -n 5 2>/dev/null | head -5 | while read line; do
+            echo "    $line"
+        done
+    else
+        echo "  Login history not available"
+    fi
     
     echo
     wait_for_key
