@@ -239,6 +239,10 @@ install_core_files() {
     
     # User management
     download_file "users/user_manager.sh" "$INSTALL_DIR/users/user_manager.sh"
+    download_file "users/usage_limits.py" "$INSTALL_DIR/users/usage_limits.py"
+    
+    # Protocol management (missing files)
+    download_file "protocols/domain_manager.sh" "$INSTALL_DIR/protocols/domain_manager.sh"
     
     # Make scripts executable
     find $INSTALL_DIR -name "*.sh" -exec chmod +x {} \;
