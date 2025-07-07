@@ -403,12 +403,78 @@ main() {
                 
                 case $choice in
                     1) install_v2ray ;;
-                    2) systemctl restart v2ray ;;
-                    3) systemctl stop v2ray ;;
+                    2) start_restart_v2ray ;;
+                    3) stop_v2ray ;;
                     4) configure_vless ;;
                     5) configure_vmess ;;
                     6) configure_websocket ;;
                     7) list_v2ray_users ;;
+                    8) remove_v2ray_user ;;
+                    9) enable_tls ;;
+                    10) disable_tls ;;
+                    11) generate_client_config ;;
+                    12) view_v2ray_logs ;;
+                    13) advanced_v2ray_settings ;;
+                    0) break ;;
+                    *) echo "Invalid option" ;;
+                esac
+                wait_for_key
+            done
+            ;;
+    esac
+}
+
+# V2Ray service management functions
+start_restart_v2ray() {
+    log_info "Starting/Restarting V2Ray service..."
+    
+    # Check if V2Ray is installed
+    if ! command -v v2ray >/dev/null 2>&1; then
+        log_error "V2Ray is not installed. Please install it first."
+        return 1
+    fi
+    
+    # Check if config file exists
+    if [ ! -f "$V2RAY_CONFIG_FILE" ]; then
+        log_error "V2Ray configuration file not found at $V2RAY_CONFIG_FILE"
+        log_info "Creating basic configuration..."
+        create_basic_v2ray_config
+    fi
+    
+    # Restart service
+    systemctl restart v2ray
+    sleep 3
+    
+    # Check status
+    if systemctl is-active --quiet v2ray; then
+        log_info "V2Ray service started successfully"
+        systemctl status v2ray --no-pager -l | head -10
+    else
+        log_error "V2Ray service failed to start"
+        journalctl -u v2ray --no-pager -l --lines=5
+    fi
+}
+
+stop_v2ray() {
+    log_info "Stopping V2Ray service..."
+    systemctl stop v2ray
+    
+    if ! systemctl is-active --quiet v2ray; then
+        log_info "V2Ray service stopped successfully"
+    else
+        log_error "Failed to stop V2Ray service"
+    fi
+}
+
+view_v2ray_logs() {
+    echo
+    echo -e "${YELLOW}V2Ray Service Logs${NC}"
+    echo
+    echo "Recent V2Ray logs:"
+    journalctl -u v2ray --no-pager -l --lines=20
+    echo
+    echo "Press Enter to continue..."
+    readt_v2ray_users ;;
                     8) remove_v2ray_user ;;
                     9) enable_tls ;;
                     10) disable_tls ;;
