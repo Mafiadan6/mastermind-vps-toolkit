@@ -420,6 +420,59 @@ check_service_dependencies() {
     return 0
 }
 
+# User management helpers
+user_exists() {
+    local username="$1"
+    if id "$username" &>/dev/null; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+get_input() {
+    local prompt="$1"
+    local default="$2"
+    local validation="$3"
+    local input
+    
+    while true; do
+        if [ -n "$default" ]; then
+            echo -n "$prompt [$default]: "
+        else
+            echo -n "$prompt: "
+        fi
+        read input
+        
+        # Use default if input is empty
+        if [ -z "$input" ] && [ -n "$default" ]; then
+            input="$default"
+        fi
+        
+        # If no validation or input passes validation, return it
+        if [ -z "$validation" ] || [ -n "$input" ]; then
+            echo "$input"
+            return 0
+        fi
+    done
+}
+
+generate_password() {
+    local length="${1:-12}"
+    tr -dc 'A-Za-z0-9!@#$%^&*' < /dev/urandom | head -c "$length"
+}
+
+confirm() {
+    local prompt="$1"
+    local response
+    echo -n "$prompt [y/N]: "
+    read response
+    case "$response" in
+        [yY]|[yY][eE][sS]) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 # Auto-completion helpers
 get_available_users() {
     cut -d: -f1 /etc/passwd | grep -v -E '^(root|daemon|bin|sys|sync|games|man|lp|mail|news|uucp|proxy|www-data|backup|list|irc|gnats|nobody|_apt)$'
