@@ -946,17 +946,56 @@ show_system_monitoring_menu() {
     echo -e "  ${CYAN}Nginx:${RESET} $(check_service_status 'nginx')"
     echo
     
-    # Port monitoring
-    echo -e "${BRIGHT_YELLOW}Port Status:${RESET}"
-    for port in 1080 8080 8888 9000 9001 9002 9003; do
-        if netstat -tuln | grep -q ":$port "; then
-            echo -e "  ${CYAN}Port $port:${RESET} ${GREEN}LISTENING${RESET}"
-        else
-            echo -e "  ${CYAN}Port $port:${RESET} ${RED}CLOSED${RESET}"
-        fi
-    done
+    # Enhanced port monitoring with process details
+    echo -e "${BRIGHT_YELLOW}Detailed Port Status:${RESET}"
     echo
-    read -p "Press Enter to continue..."
+    echo -e "${CYAN}Main Proxy Ports:${RESET}"
+    show_port_details 1080 "SOCKS5 Proxy"
+    show_port_details 8080 "WebSocket Tunnel" 
+    show_port_details 8888 "HTTP Proxy"
+    echo
+    echo -e "${CYAN}Response Ports:${RESET}"
+    show_port_details 9000 "Dropbear SSH simulation"
+    show_port_details 9001 "MasterMind response"
+    show_port_details 9002 "HTTP/1.1 101 response"
+    show_port_details 9003 "OpenSSH simulation"
+    echo
+    echo -e "${CYAN}Protocol Ports:${RESET}"
+    show_port_details 80 "V2Ray VLESS"
+    show_port_details 443 "SSH TLS"
+    show_port_details 444 "Dropbear SSH"
+    show_port_details 445 "Dropbear SSH Alt"
+    echo
+    echo -e "${CYAN}All Open Ports:${RESET} $(get_all_open_ports)"
+    echo
+    
+    echo -e "${BRIGHT_YELLOW}Quick Actions:${RESET}"
+    echo -e "  ${CYAN}[r]${RESET} Refresh | ${CYAN}[t]${RESET} Test Ports | ${CYAN}[s]${RESET} Service Control | ${CYAN}[Enter]${RESET} Continue"
+    echo -n "Action: "
+    read -r action
+    case $action in
+        r) show_system_monitoring_menu ;;
+        t) 
+            echo "Testing all ports..."
+            for port in 1080 8080 8888 9000 9001 9002 9003 80 443 444 445; do
+                show_port_details "$port" "Test"
+            done
+            read -p "Press Enter to continue..."
+            ;;
+        s)
+            echo "Service control options:"
+            echo "1. Restart python-proxy"
+            echo "2. Restart all services"
+            echo "3. View service logs"
+            read -p "Choice: " svc_choice
+            case $svc_choice in
+                1) systemctl restart python-proxy && echo "Python proxy restarted" ;;
+                2) systemctl restart python-proxy ssh nginx && echo "All services restarted" ;;
+                3) journalctl -u python-proxy -n 20 --no-pager ;;
+            esac
+            read -p "Press Enter to continue..."
+            ;;
+    esac
 }
 
 # System tools menu
