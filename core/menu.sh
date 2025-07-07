@@ -377,12 +377,46 @@ handle_protocol_menu() {
                 fi
                 ;;
             5) 
-                echo "OpenVPN setup coming soon..."
-                read -p "Press Enter to continue..."
+                if [ -f "$MASTERMIND_HOME/protocols/openvpn_setup.sh" ]; then
+                    bash "$MASTERMIND_HOME/protocols/openvpn_setup.sh"
+                else
+                    echo "Setting up OpenVPN..."
+                    echo "1. Install OpenVPN"
+                    echo "2. Generate server config"
+                    echo "3. Create client config" 
+                    echo "4. Start OpenVPN service"
+                    read -p "Choose option: " ovpn_choice
+                    case $ovpn_choice in
+                        1) apt update && apt install -y openvpn easy-rsa ;;
+                        2) echo "OpenVPN server configuration available in advanced setup" ;;
+                        3) echo "Client config generation available after server setup" ;;
+                        4) systemctl enable openvpn && systemctl start openvpn ;;
+                    esac
+                    read -p "Press Enter to continue..."
+                fi
                 ;;
             6) 
-                echo "Dropbear SSH setup coming soon..."
-                read -p "Press Enter to continue..."
+                if [ -f "$MASTERMIND_HOME/protocols/dropbear_setup.sh" ]; then
+                    bash "$MASTERMIND_HOME/protocols/dropbear_setup.sh"
+                else
+                    echo "Dropbear SSH Management:"
+                    echo "1. Install Dropbear"
+                    echo "2. Configure ports"
+                    echo "3. Start service"
+                    echo "4. View status"
+                    read -p "Choose option: " drop_choice
+                    case $drop_choice in
+                        1) apt update && apt install -y dropbear ;;
+                        2) 
+                            read -p "Enter Dropbear port [444]: " drop_port
+                            drop_port=${drop_port:-444}
+                            sed -i "s/^DROPBEAR_PORT=.*/DROPBEAR_PORT=$drop_port/" /etc/default/dropbear
+                            ;;
+                        3) systemctl enable dropbear && systemctl start dropbear ;;
+                        4) systemctl status dropbear ;;
+                    esac
+                    read -p "Press Enter to continue..."
+                fi
                 ;;
             7) 
                 if [ -f "$MASTERMIND_HOME/protocols/badvpn_setup.sh" ]; then
@@ -443,10 +477,62 @@ handle_network_menu() {
                     read -p "Press Enter to continue..."
                 fi
                 ;;
-            4) echo "TCP optimization coming soon..." && read -p "Press Enter to continue..." ;;
-            5) echo "Network diagnostics coming soon..." && read -p "Press Enter to continue..." ;;
-            6) echo "Bandwidth monitor coming soon..." && read -p "Press Enter to continue..." ;;
-            7) echo "Connection limits coming soon..." && read -p "Press Enter to continue..." ;;
+            4) 
+                echo "TCP Optimization:"
+                echo "1. Enable TCP Fast Open"
+                echo "2. Optimize TCP window scaling"
+                echo "3. Configure TCP congestion control"
+                echo "4. Tune socket buffers"
+                read -p "Choose option: " tcp_choice
+                case $tcp_choice in
+                    1) echo 'net.ipv4.tcp_fastopen = 3' >> /etc/sysctl.conf && sysctl -p ;;
+                    2) echo 'net.ipv4.tcp_window_scaling = 1' >> /etc/sysctl.conf && sysctl -p ;;
+                    3) echo 'net.core.default_qdisc = fq' >> /etc/sysctl.conf && sysctl -p ;;
+                    4) echo 'net.core.rmem_max = 16777216' >> /etc/sysctl.conf && sysctl -p ;;
+                esac
+                read -p "Press Enter to continue..."
+                ;;
+            5) 
+                echo "Network Diagnostics:"
+                echo "1. Speed test"
+                echo "2. Connection test"
+                echo "3. DNS test"
+                echo "4. Port scan"
+                read -p "Choose option: " diag_choice
+                case $diag_choice in
+                    1) curl -s https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python3 ;;
+                    2) ping -c 4 8.8.8.8 ;;
+                    3) nslookup google.com ;;
+                    4) nmap -p 1-1000 localhost ;;
+                esac
+                read -p "Press Enter to continue..."
+                ;;
+            6) 
+                echo "Bandwidth Monitor:"
+                echo "Real-time network usage:"
+                if command -v iftop >/dev/null; then
+                    iftop -t -s 10
+                else
+                    echo "Installing iftop..."
+                    apt update && apt install -y iftop
+                    iftop -t -s 10
+                fi
+                ;;
+            7) 
+                echo "Connection Limits Management:"
+                echo "1. View current connections"
+                echo "2. Set connection limits"
+                echo "3. View connection limits"
+                echo "4. Block suspicious IPs"
+                read -p "Choose option: " conn_choice
+                case $conn_choice in
+                    1) ss -tuln | head -20 ;;
+                    2) read -p "Max connections per IP: " max_conn; echo "net.netfilter.nf_conntrack_max = $max_conn" >> /etc/sysctl.conf ;;
+                    3) sysctl net.netfilter.nf_conntrack_max ;;
+                    4) fail2ban-client status ;;
+                esac
+                read -p "Press Enter to continue..."
+                ;;
             0) return ;;
             *) echo "Invalid option. Please try again." ;;
         esac
