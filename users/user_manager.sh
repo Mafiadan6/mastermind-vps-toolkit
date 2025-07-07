@@ -70,6 +70,12 @@ add_ssh_user() {
     local home_dir=$(get_input "Home directory" "" "/home/$username")
     
     echo
+    echo -e "${YELLOW}Usage Limits Configuration:${NC}"
+    local data_limit=$(get_input "Data limit (GB)" "" "$DEFAULT_DATA_LIMIT_GB")
+    local days_limit=$(get_input "Account validity (days)" "" "$DEFAULT_DAYS_LIMIT")
+    local connection_limit=$(get_input "Max concurrent connections" "" "$DEFAULT_CONNECTION_LIMIT")
+    
+    echo
     echo -e "${YELLOW}Additional options:${NC}"
     local create_ssh_key=false
     local add_to_sudo=false
@@ -117,20 +123,42 @@ add_ssh_user() {
         chown -R "$username:$username" "$home_dir"
         chmod 755 "$home_dir"
         
+        # Add user to usage limits system
+        if [ -f "/opt/mastermind/users/usage_limits.py" ]; then
+            python3 /opt/mastermind/users/usage_limits.py add_user "$username" "ssh" "$data_limit" "$days_limit" "$connection_limit"
+            log_info "User $username added to usage limits system"
+        fi
+        
         log_info "User $username created successfully"
         
         # Display user information
         echo
-        echo -e "${GREEN}User created successfully:${NC}"
-        echo -e "  Username: $username"
-        echo -e "  Password: $password"
-        echo -e "  Home: $home_dir"
-        echo -e "  Shell: $shell"
-        echo -e "  Sudo access: $([ "$add_to_sudo" = true ] && echo "Yes" || echo "No")"
-        echo -e "  SSH keys: $([ "$create_ssh_key" = true ] && echo "Generated" || echo "No")"
+        echo -e "${GREEN}══════════════════════════════════════════════════════════════════════════════${NC}"
+        echo -e "${GREEN}                            SSH USER CREATED SUCCESSFULLY                       ${NC}"
+        echo -e "${GREEN}══════════════════════════════════════════════════════════════════════════════${NC}"
+        echo
+        echo -e "${YELLOW}Account Details:${NC}"
+        echo -e "  📤 Username: ${WHITE}$username${NC}"
+        echo -e "  🔑 Password: ${WHITE}$password${NC}"
+        echo -e "  🏠 Home Directory: ${WHITE}$home_dir${NC}"
+        echo -e "  🐚 Shell: ${WHITE}$shell${NC}"
+        echo -e "  👤 Sudo Access: ${WHITE}$([ "$add_to_sudo" = true ] && echo "Yes" || echo "No")${NC}"
+        echo -e "  🔐 SSH Keys: ${WHITE}$([ "$create_ssh_key" = true ] && echo "Generated" || echo "No")${NC}"
+        echo
+        echo -e "${YELLOW}Usage Limits:${NC}"
+        echo -e "  📊 Data Limit: ${WHITE}${data_limit} GB${NC}"
+        echo -e "  📅 Account Validity: ${WHITE}${days_limit} days${NC}"
+        echo -e "  🔗 Max Connections: ${WHITE}${connection_limit}${NC}"
+        echo
+        echo -e "${YELLOW}SSH Connection Info:${NC}"
+        echo -e "  🌐 Host: ${WHITE}$(curl -s ifconfig.me 2>/dev/null || echo "Your-Server-IP")${NC}"
+        echo -e "  🔌 Port: ${WHITE}$SSH_PORT${NC}"
+        echo -e "  📱 Connection Command: ${WHITE}ssh -p $SSH_PORT $username@$(curl -s ifconfig.me 2>/dev/null || echo "Your-Server-IP")${NC}"
+        echo
+        echo -e "${GREEN}══════════════════════════════════════════════════════════════════════════════${NC}"
         
         # Save user info to log
-        echo "$(date): Created user $username with home $home_dir" >> /var/log/mastermind/user-management.log
+        echo "$(date): Created SSH user $username with limits: ${data_limit}GB, ${days_limit} days, ${connection_limit} connections" >> /var/log/mastermind/user-management.log
         
     else
         log_error "Failed to create user $username"
@@ -1281,8 +1309,23 @@ main() {
         "remove")
             remove_user
             ;;
+        "modify")
+            modify_user
+            ;;
         "list")
             list_users
+            ;;
+        "ssh")
+            ssh_key_management
+            ;;
+        "password")
+            password_management
+            ;;
+        "permissions")
+            user_permissions
+            ;;
+        "activity")
+            user_activity_monitor
             ;;
         "menu"|*)
             while true; do
