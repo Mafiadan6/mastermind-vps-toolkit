@@ -171,14 +171,10 @@ show_main_menu() {
     echo
     echo -e "${CYAN}Core Proxy Suite:${RESET} $(check_service_status 'python-proxy')"
     show_port_details 1080 "SOCKS5 Proxy - Standard proxy for apps & browsers"
-    show_port_details 8080 "WebSocket Tunnel - For NPV Tunnel, HTTP Injector, etc."
+    show_port_details 444 "WebSocket Proxy - Listen 444, proxy to 8080 (HTTP Injector)"
     show_port_details 8888 "HTTP Proxy - Web browser proxy with CONNECT support"
     echo
-    echo -e "${CYAN}Server Response Ports (MasterMind Branded):${RESET}"
-    show_port_details 9000 "Dropbear SSH simulation"
-    show_port_details 9001 "Custom MasterMind response (recommended)"
-    show_port_details 9002 "HTTP/1.1 101 response"
-    show_port_details 9003 "OpenSSH simulation"
+
     echo
     echo -e "${CYAN}VPS Protocol Services:${RESET}"
     echo -e "  ${WHITE}• V2Ray VLESS${RESET} $(check_service_status 'v2ray') ${GREEN}[Port 80]${RESET} $(check_port_status 80) - WebSocket non-TLS"
@@ -226,7 +222,7 @@ show_protocol_menu() {
     echo -e "${BRIGHT_YELLOW}📊 Current Service Status:${RESET}"
     echo
     echo -e "${CYAN}Main Proxy Suite:${RESET}"
-    echo -e "  ${WHITE}[1] Python Proxy Suite${RESET} $(check_service_status 'python-proxy') - ${GREEN}SOCKS5, WebSocket & HTTP proxies${RESET}"
+    echo -e "  ${WHITE}[1] Python Proxy Suite${RESET} $(check_service_status 'python-proxy') - ${GREEN}SOCKS5(1080), WebSocket Proxy(444→8080), HTTP(8888)${RESET}"
     echo
     echo -e "${CYAN}Tunneling Apps Support:${RESET}"
     echo -e "  ${WHITE}[2] V2Ray VLESS/VMESS${RESET} $(check_service_status 'v2ray') - ${GREEN}Advanced proxy protocol${RESET}"
@@ -798,15 +794,11 @@ show_port_mapping_info() {
     echo
     echo -e "${GREEN}🔹 Main Settings to Use:${RESET}"
     echo -e "  ${WHITE}Server IP:${RESET}     $(curl -s ifconfig.me 2>/dev/null || echo 'YOUR_VPS_IP')"
-    echo -e "  ${WHITE}WebSocket Port:${RESET} ${BRIGHT_GREEN}8080${RESET} (Main tunnel port)"
+    echo -e "  ${WHITE}WebSocket Proxy:${RESET} ${BRIGHT_GREEN}444→8080${RESET} (WebSocket tunnel to HTTP proxy)"
     echo -e "  ${WHITE}SOCKS5 Port:${RESET}   ${BRIGHT_GREEN}1080${RESET} (For proxy mode)"
     echo -e "  ${WHITE}HTTP Proxy:${RESET}    ${BRIGHT_GREEN}8888${RESET} (For browser proxy)"
     echo
-    echo -e "${GREEN}🔹 Response Ports (for SSH server responses):${RESET}"
-    echo -e "  ${WHITE}Port 9000:${RESET} Dropbear SSH simulation"
-    echo -e "  ${WHITE}Port 9001:${RESET} Custom MasterMind response (recommended)"
-    echo -e "  ${WHITE}Port 9002:${RESET} HTTP/1.1 101 response"
-    echo -e "  ${WHITE}Port 9003:${RESET} OpenSSH simulation"
+
     echo
     echo -e "${BRIGHT_YELLOW}🖥️ For Desktop/Browser Use:${RESET}"
     echo
@@ -815,9 +807,10 @@ show_port_mapping_info() {
     echo
     echo -e "${BRIGHT_YELLOW}🚀 VPS Protocol Services:${RESET}"
     echo
-    echo -e "  ${WHITE}• V2Ray VLESS:${RESET}  Port 80  (WebSocket non-TLS)"
+    echo -e "  ${WHITE}• V2Ray VLESS:${RESET}  Port 80  (WebSocket non-TLS)
+  ${WHITE}• WebSocket Proxy:${RESET} Port 444→8080 (for HTTP Injector)"
     echo -e "  ${WHITE}• SSH TLS:${RESET}      Port 443 (SSL encrypted SSH)"
-    echo -e "  ${WHITE}• Dropbear SSH:${RESET} Port 444-445 (Alternative SSH)"
+    echo -e "  ${WHITE}• Dropbear SSH:${RESET} Port 445 (Alternative SSH)"
     echo
     echo -e "${BRIGHT_YELLOW}⚡ Quick Actions:${RESET}"
     echo -e "  ${CYAN}[1]${RESET} Test all proxy services"
@@ -841,13 +834,13 @@ show_port_mapping_info() {
                 echo "Running comprehensive port tests..."
                 echo
                 echo -e "${YELLOW}Proxy Suite Ports:${RESET}"
-                for port in 1080 8080 8888; do
-                    show_port_details "$port" "$(case $port in 1080) echo 'SOCKS5 Proxy';; 8080) echo 'WebSocket Tunnel';; 8888) echo 'HTTP Proxy';; esac)"
+                for port in 1080 444 8888; do
+                    show_port_details "$port" "$(case $port in 1080) echo 'SOCKS5 Proxy';; 444) echo 'WebSocket Proxy (444→8080)';; 8888) echo 'HTTP Proxy';; esac)"
                 done
                 echo
-                echo -e "${YELLOW}Response Ports:${RESET}"
+                echo -e "${YELLOW}Additional HTTP Ports:${RESET}"
                 for port in 9000 9001 9002 9003; do
-                    show_port_details "$port" "MasterMind Response Port"
+                    show_port_details "$port" "HTTP Response Port"
                 done
                 echo
                 echo -e "${YELLOW}Protocol Ports:${RESET}"
@@ -886,14 +879,14 @@ show_connection_examples() {
     
     echo -e "${BRIGHT_YELLOW}📱 NPV Tunnel Configuration:${RESET}"
     echo -e "  ${WHITE}Server Host:${RESET} $server_ip"
-    echo -e "  ${WHITE}Server Port:${RESET} 8080"
-    echo -e "  ${WHITE}Protocol:${RESET} WebSocket"
-    echo -e "  ${WHITE}Response Port:${RESET} 9001 (recommended)"
+    echo -e "  ${WHITE}WebSocket Proxy:${RESET} 444→8080"
+    echo -e "  ${WHITE}Protocol:${RESET} WebSocket Proxy"
+
     echo
     echo -e "${BRIGHT_YELLOW}📱 HTTP Injector Configuration:${RESET}"
     echo -e "  ${WHITE}Proxy Type:${RESET} HTTP"
     echo -e "  ${WHITE}Server:${RESET} $server_ip:8888"
-    echo -e "  ${WHITE}WebSocket:${RESET} ws://$server_ip:8080"
+    echo -e "  ${WHITE}WebSocket:${RESET} ws://$server_ip:444 (proxy to 8080)"
     echo
     echo -e "${BRIGHT_YELLOW}🌐 Browser Proxy Setup:${RESET}"
     echo -e "  ${WHITE}SOCKS5:${RESET} $server_ip:1080"
@@ -902,7 +895,7 @@ show_connection_examples() {
     echo -e "${BRIGHT_YELLOW}💻 Terminal Commands:${RESET}"
     echo -e "  ${WHITE}Test SOCKS5:${RESET} curl --socks5 $server_ip:1080 https://httpbin.org/ip"
     echo -e "  ${WHITE}Test HTTP:${RESET} curl --proxy $server_ip:8888 https://httpbin.org/ip"
-    echo -e "  ${WHITE}Test WebSocket:${RESET} wscat -c ws://$server_ip:8080"
+    echo -e "  ${WHITE}Test WebSocket:${RESET} wscat -c ws://$server_ip:444"
     echo
     read -p "Press Enter to continue..."
 }
@@ -951,14 +944,14 @@ show_system_monitoring_menu() {
     echo
     echo -e "${CYAN}Main Proxy Ports:${RESET}"
     show_port_details 1080 "SOCKS5 Proxy"
-    show_port_details 8080 "WebSocket Tunnel" 
+    show_port_details 444 "WebSocket Proxy (444→8080)" 
     show_port_details 8888 "HTTP Proxy"
     echo
-    echo -e "${CYAN}Response Ports:${RESET}"
-    show_port_details 9000 "Dropbear SSH simulation"
-    show_port_details 9001 "MasterMind response"
-    show_port_details 9002 "HTTP/1.1 101 response"
-    show_port_details 9003 "OpenSSH simulation"
+    echo -e "${CYAN}Additional HTTP Ports:${RESET}"
+    show_port_details 9000 "HTTP Response Port"
+    show_port_details 9001 "HTTP Response Port"
+    show_port_details 9002 "HTTP Response Port"
+    show_port_details 9003 "HTTP Response Port"
     echo
     echo -e "${CYAN}Protocol Ports:${RESET}"
     show_port_details 80 "V2Ray VLESS"
@@ -977,7 +970,7 @@ show_system_monitoring_menu() {
         r) show_system_monitoring_menu ;;
         t) 
             echo "Testing all ports..."
-            for port in 1080 8080 8888 9000 9001 9002 9003 80 443 444 445; do
+            for port in 1080 444 8080 8888 9000 9001 9002 9003 80 443 445; do
                 show_port_details "$port" "Test"
             done
             read -p "Press Enter to continue..."
@@ -1180,7 +1173,8 @@ show_advanced_settings_menu() {
         4) 
             echo "Current port configuration:"
             echo "SOCKS5_PORT=1080"
-            echo "WEBSOCKET_PORT=8080"
+            echo "WEBSOCKET_PORT=444"
+            echo "WEBSOCKET_PROXY_TARGET=8080"
             echo "HTTP_PROXY_PORT=8888"
             echo "RESPONSE_PORTS=9000,9001,9002,9003"
             read -p "Press Enter to continue..."
@@ -1331,18 +1325,18 @@ mobile_apps_setup() {
     echo
     echo -e "${BRIGHT_GREEN}📱 For NPV Tunnel:${RESET}"
     echo -e "  ${WHITE}Server Host:${RESET} ${BRIGHT_YELLOW}$server_ip${RESET}"
-    echo -e "  ${WHITE}Server Port:${RESET} ${BRIGHT_YELLOW}8080${RESET}"
-    echo -e "  ${WHITE}Protocol:${RESET} WebSocket"
-    echo -e "  ${WHITE}Response Port:${RESET} ${BRIGHT_YELLOW}9001${RESET} (recommended)"
+    echo -e "  ${WHITE}WebSocket Proxy:${RESET} ${BRIGHT_YELLOW}444→8080${RESET}"
+    echo -e "  ${WHITE}Protocol:${RESET} WebSocket Proxy"
+
     echo
     echo -e "${BRIGHT_GREEN}📱 For HTTP Injector:${RESET}"
     echo -e "  ${WHITE}Proxy Host:${RESET} ${BRIGHT_YELLOW}$server_ip${RESET}"
     echo -e "  ${WHITE}Proxy Port:${RESET} ${BRIGHT_YELLOW}8888${RESET}"
-    echo -e "  ${WHITE}WebSocket:${RESET} ws://${BRIGHT_YELLOW}$server_ip:8080${RESET}"
+    echo -e "  ${WHITE}WebSocket:${RESET} ws://${BRIGHT_YELLOW}$server_ip:444${RESET} (proxy to 8080)"
     echo
     echo -e "${CYAN}Step 3: Testing connections...${RESET}"
     echo
-    for port in 8080 8888 9001; do
+    for port in 444 8080 8888 9001; do
         if ss -tuln 2>/dev/null | grep -q ":$port " || netstat -tuln 2>/dev/null | grep -q ":$port " || lsof -i :$port 2>/dev/null >/dev/null; then
             echo -e "  Port $port: ${GREEN}✓ READY${RESET}"
         else
@@ -1438,7 +1432,7 @@ complete_server_setup() {
     echo -e "${BRIGHT_YELLOW}🎉 Your server is ready! Here's everything:${RESET}"
     echo
     echo -e "${BRIGHT_GREEN}📱 Mobile Apps:${RESET}"
-    echo -e "  ${WHITE}WebSocket Tunnel:${RESET} $server_ip:8080"
+    echo -e "  ${WHITE}WebSocket Proxy:${RESET} $server_ip:444→8080"
     echo -e "  ${WHITE}HTTP Proxy:${RESET} $server_ip:8888"
     echo
     echo -e "${BRIGHT_GREEN}🖥️ Desktop/Browser:${RESET}"
