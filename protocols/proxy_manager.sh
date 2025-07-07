@@ -20,8 +20,11 @@ show_proxy_menu() {
     
     # Show port status
     echo -e "${YELLOW}Port Status:${NC}"
-    echo -e "  SOCKS5 ($PYTHON_PROXY_PORT): $(get_port_status $PYTHON_PROXY_PORT)"
-    for port in "${RESPONSE_PORTS[@]}"; do
+    echo -e "  SOCKS5 ($SOCKS_PORT): $(get_port_status $SOCKS_PORT)"
+    
+    # Convert RESPONSE_PORTS string to array
+    IFS=',' read -ra PORTS_ARRAY <<< "$RESPONSE_PORTS"
+    for port in "${PORTS_ARRAY[@]}"; do
         echo -e "  HTTP Response ($port): $(get_port_status $port)"
     done
     
@@ -57,8 +60,9 @@ start_proxy_suite() {
     if is_service_running "python-proxy"; then
         log_info "Python Proxy Suite started successfully"
         echo
-        echo -e "${GREEN}✓ SOCKS5 Proxy: Running on port $PYTHON_PROXY_PORT${NC}"
-        for port in "${RESPONSE_PORTS[@]}"; do
+        echo -e "${GREEN}✓ SOCKS5 Proxy: Running on port $SOCKS_PORT${NC}"
+        IFS=',' read -ra PORTS_ARRAY <<< "$RESPONSE_PORTS"
+        for port in "${PORTS_ARRAY[@]}"; do
             echo -e "${GREEN}✓ HTTP Response Server: Running on port $port${NC}"
         done
     else
@@ -90,19 +94,18 @@ stop_proxy_suite() {
 # Configure SOCKS5 port
 configure_socks5_port() {
     echo
-    echo -e "${YELLOW}Current SOCKS5 port: $PYTHON_PROXY_PORT${NC}"
+    echo -e "${YELLOW}Current SOCKS5 port: $SOCKS_PORT${NC}"
     echo
     
     local new_port
-    new_port=$(get_input "Enter new SOCKS5 port" "validate_port" "$PYTHON_PROXY_PORT")
+    new_port=$(get_input "Enter new SOCKS5 port" "validate_port" "$SOCKS_PORT")
     
-    if [ "$new_port" != "$PYTHON_PROXY_PORT" ]; then
+    if [ "$new_port" != "$SOCKS_PORT" ]; then
         # Update configuration
-        sed -i "s/SOCKS_PORT=.*/SOCKS_PORT=$new_port/" /etc/default/python-proxy
-        sed -i "s/PYTHON_PROXY_PORT=.*/PYTHON_PROXY_PORT=$new_port/" /opt/mastermind/core/config.cfg
+        sed -i "s/SOCKS_PORT=.*/SOCKS_PORT=$new_port/" /opt/mastermind/core/config.cfg
         
         # Update firewall
-        ufw delete allow $PYTHON_PROXY_PORT/tcp 2>/dev/null || true
+        ufw delete allow $SOCKS_PORT/tcp 2>/dev/null || true
         ufw allow $new_port/tcp
         
         log_info "SOCKS5 port updated to $new_port"
@@ -118,30 +121,25 @@ configure_socks5_port() {
 # Configure response ports
 configure_response_ports() {
     echo
-    echo -e "${YELLOW}Current response ports: ${RESPONSE_PORTS[*]}${NC}"
+    echo -e "${YELLOW}Current response ports: $RESPONSE_PORTS${NC}"
     echo
     
     local new_ports
-    new_ports=$(get_input "Enter new response ports (comma-separated)" "" "${RESPONSE_PORTS[*]}")
+    new_ports=$(get_input "Enter new response ports (comma-separated)" "" "$RESPONSE_PORTS")
     
-    if [ "$new_ports" != "${RESPONSE_PORTS[*]}" ]; then
-        # Convert to array format
-        local ports_array="("
+    if [ "$new_ports" != "$RESPONSE_PORTS" ]; then
+        # Update configuration
+        sed -i "s/RESPONSE_PORTS=.*/RESPONSE_PORTS=\"$new_ports\"/" /opt/mastermind/core/config.cfg
+        
+        # Update firewall for new ports
         IFS=',' read -ra PORTS <<< "$new_ports"
         for port in "${PORTS[@]}"; do
             port=$(echo "$port" | tr -d ' ')
             if validate_port "$port"; then
-                ports_array+="$port "
-                
                 # Update firewall
                 ufw allow $port/tcp
             fi
         done
-        ports_array+=")"
-        
-        # Update configuration
-        sed -i "s/RESPONSE_PORTS=.*/RESPONSE_PORTS=$ports_array/" /opt/mastermind/core/config.cfg
-        sed -i "s/RESPONSE_PORTS=.*/RESPONSE_PORTS=\"$new_ports\"/" /etc/default/python-proxy
         
         log_info "Response ports updated"
         
