@@ -308,7 +308,8 @@ WorkingDirectory=/opt/mastermind/protocols
 Environment=PYTHONPATH=/opt/mastermind/protocols
 Environment=SOCKS_PORT=1080
 Environment=HTTP_PROXY_PORT=8888
-Environment=WEBSOCKET_PORT=8080
+Environment=WEBSOCKET_PORT=444
+Environment=WEBSOCKET_PROXY_TARGET=8080
 Environment=LOG_LEVEL=INFO
 ExecStart=/usr/bin/python3 /opt/mastermind/protocols/python_proxy.py
 Restart=always
@@ -367,7 +368,9 @@ configure_firewall() {
     
     # Allow proxy ports (Proxy Structure v2.0)
     ufw allow 1080/tcp comment 'SOCKS5 Proxy'
-    ufw allow 8080/tcp comment 'WebSocket-SSH Proxy'
+    ufw allow 444/tcp comment 'WebSocket Proxy'
+    ufw allow 8080/tcp comment 'WebSocket Proxy Target'
+    ufw allow 445/tcp comment 'Dropbear SSH'
     ufw allow 8888/tcp comment 'HTTP Proxy'
     
     # Allow response server ports
@@ -401,7 +404,8 @@ DATA_DIR=/opt/mastermind/data
 [PORTS]
 SOCKS_PORT=1080
 HTTP_PROXY_PORT=8888
-WEBSOCKET_PORT=8080
+WEBSOCKET_PORT=444
+WEBSOCKET_PROXY_TARGET=8080
 RESPONSE_PORTS=9000,9001,9002,9003
 
 [SECURITY]
@@ -422,7 +426,8 @@ MASTERMIND_HOME=/opt/mastermind
 MASTERMIND_USER=proxy-user
 SOCKS_PORT=1080
 HTTP_PROXY_PORT=8888
-WEBSOCKET_PORT=8080
+WEBSOCKET_PORT=444
+WEBSOCKET_PROXY_TARGET=8080
 EOF
     
     log "Configuration files created"
@@ -461,7 +466,7 @@ setup_fail2ban() {
     cat > /etc/fail2ban/jail.d/mastermind.conf << 'EOF'
 [mastermind-proxy]
 enabled = true
-port = 8080,8888,8443
+port = 444,8080,8888
 filter = mastermind-proxy
 logpath = /var/log/mastermind/*.log
 maxretry = 5
