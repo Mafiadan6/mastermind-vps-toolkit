@@ -263,9 +263,9 @@ User=root
 Group=root
 WorkingDirectory=/opt/mastermind/protocols
 Environment=PYTHONPATH=/opt/mastermind/protocols
-Environment=SOCKS_PORT=8080
+Environment=SOCKS_PORT=1080
 Environment=HTTP_PROXY_PORT=8888
-Environment=WEBSOCKET_PORT=8443
+Environment=WEBSOCKET_PORT=8080
 Environment=LOG_LEVEL=INFO
 ExecStart=/usr/bin/python3 /opt/mastermind/protocols/python_proxy.py
 Restart=always
@@ -322,16 +322,18 @@ configure_firewall() {
     # Allow SSH
     ufw allow 22/tcp
     
-    # Allow proxy ports
-    ufw allow 8080/tcp comment 'SOCKS5 Proxy'
+    # Allow proxy ports (Proxy Structure v2.0)
+    ufw allow 1080/tcp comment 'SOCKS5 Proxy'
+    ufw allow 8080/tcp comment 'WebSocket-SSH Proxy'
     ufw allow 8888/tcp comment 'HTTP Proxy'
-    ufw allow 8443/tcp comment 'WebSocket Proxy'
     
     # Allow response server ports
-    ufw allow 80/tcp comment 'HTTP'
-    ufw allow 443/tcp comment 'HTTPS'
-    ufw allow 8000/tcp comment 'Response Server'
-    ufw allow 9000/tcp comment 'Response Server'
+    ufw allow 80/tcp comment 'HTTP/V2Ray'
+    ufw allow 443/tcp comment 'HTTPS/SSH-TLS'
+    ufw allow 9000/tcp comment 'Response Server 1'
+    ufw allow 9001/tcp comment 'Response Server 2'
+    ufw allow 9002/tcp comment 'Response Server 3'
+    ufw allow 9003/tcp comment 'Response Server 4'
     
     # Enable UFW
     ufw --force enable
@@ -354,10 +356,10 @@ LOG_DIR=/var/log/mastermind
 DATA_DIR=/opt/mastermind/data
 
 [PORTS]
-SOCKS_PORT=8080
+SOCKS_PORT=1080
 HTTP_PROXY_PORT=8888
-WEBSOCKET_PORT=8443
-RESPONSE_PORTS=80,443,8000,9000
+WEBSOCKET_PORT=8080
+RESPONSE_PORTS=9000,9001,9002,9003
 
 [SECURITY]
 ENABLE_FAIL2BAN=true
@@ -375,9 +377,9 @@ EOF
 # Mastermind VPS Toolkit Environment Variables
 MASTERMIND_HOME=/opt/mastermind
 MASTERMIND_USER=proxy-user
-SOCKS_PORT=8080
+SOCKS_PORT=1080
 HTTP_PROXY_PORT=8888
-WEBSOCKET_PORT=8443
+WEBSOCKET_PORT=8080
 EOF
     
     log "Configuration files created"
@@ -593,6 +595,11 @@ main() {
     ufw status numbered | head -10
     echo
     echo -e "${GREEN}Installation completed! Run '${CYAN}mastermind${GREEN}' to get started.${NC}"
+    echo
+    echo -e "${CYAN}📋 Available Scripts:${NC}"
+    echo -e "${WHITE}• Main Menu:     sudo /opt/mastermind/core/menu.sh${NC}"
+    echo -e "${WHITE}• Reinstall:     sudo /opt/mastermind/reinstall.sh${NC}"
+    echo -e "${WHITE}• Uninstall:     sudo /opt/mastermind/uninstall.sh${NC}"
 }
 
 # Run main function
