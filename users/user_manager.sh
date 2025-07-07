@@ -92,7 +92,6 @@ add_ssh_user() {
     local create_ssh_key=false
     local add_to_sudo=false
     local set_quota=false
-    fi
     
     if confirm "Set disk quota?"; then
         set_quota=true
