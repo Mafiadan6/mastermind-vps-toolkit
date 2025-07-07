@@ -3,8 +3,18 @@
 # Mastermind VPS Toolkit - TCP Bypass Proxy
 # Version: 1.0.0
 
-source /opt/mastermind/core/helpers.sh
-source /opt/mastermind/core/config.cfg
+# Set default paths
+INSTALL_DIR="/opt/mastermind"
+LOG_DIR="/var/log/mastermind"
+
+# Source helper functions and config
+if [ -f "$INSTALL_DIR/core/helpers.sh" ]; then
+    source "$INSTALL_DIR/core/helpers.sh"
+fi
+
+if [ -f "$INSTALL_DIR/core/config.cfg" ]; then
+    source "$INSTALL_DIR/core/config.cfg"
+fi
 
 # TCP Bypass configuration
 REDSOCKS_CONFIG="/etc/redsocks.conf"
