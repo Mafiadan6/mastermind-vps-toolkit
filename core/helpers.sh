@@ -3,6 +3,14 @@
 # Mastermind VPS Toolkit - Helper Functions
 # Version: 2.0.0
 
+# Set default log directory
+LOG_DIR="${LOG_DIR:-/var/log/mastermind}"
+
+# Ensure log directory exists
+if [ ! -d "$LOG_DIR" ]; then
+    mkdir -p "$LOG_DIR"
+fi
+
 # Enhanced logging functions
 log_info() {
     echo -e "\033[0;36m[INFO]\033[0m $1" | tee -a "$LOG_DIR/mastermind.log"
@@ -32,6 +40,10 @@ check_command() {
 
 ensure_directory() {
     local dir="$1"
+    if [ -z "$dir" ]; then
+        log_error "Directory path cannot be empty"
+        return 1
+    fi
     if [ ! -d "$dir" ]; then
         mkdir -p "$dir"
         log_info "Created directory: $dir"
@@ -48,6 +60,43 @@ service_start() {
         log_error "Failed to start service: $service"
         return 1
     fi
+}
+
+# Get service status with proper formatting
+get_service_status() {
+    local service="$1"
+    if systemctl is-active "$service" >/dev/null 2>&1; then
+        echo -e "${GREEN}● Running${NC}"
+    elif systemctl is-enabled "$service" >/dev/null 2>&1; then
+        echo -e "${YELLOW}● Stopped${NC}"
+    else
+        echo -e "${RED}○ Not Configured${NC}"
+    fi
+}
+
+# Get port status
+get_port_status() {
+    local port="$1"
+    if netstat -tuln | grep -q ":$port "; then
+        echo -e "${GREEN}Open${NC}"
+    else
+        echo -e "${RED}Closed${NC}"
+    fi
+}
+
+# Color definitions for helpers
+if [ -z "$RED" ]; then
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    NC='\033[0m'
+fi
+
+# Wait for key press
+wait_for_key() {
+    echo
+    read -p "Press any key to continue..." -n 1
+    echo
 }
 
 service_stop() {
