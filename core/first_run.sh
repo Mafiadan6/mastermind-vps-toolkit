@@ -53,7 +53,11 @@ first_run_setup() {
     echo
     log_info "First run setup completed successfully!"
     echo
-    wait_for_key
+    
+    # Only wait for key if running interactively
+    if [[ -t 0 ]]; then
+        wait_for_key
+    fi
 }
 
 # Validate email address
@@ -304,7 +308,11 @@ main() {
         echo
         echo -e "${YELLOW}To reconfigure, remove /opt/mastermind/.installed and run this script again${NC}"
         echo
-        wait_for_key
+        
+        # Only wait for key if running interactively
+        if [[ -t 0 ]]; then
+            wait_for_key
+        fi
     fi
 }
 
