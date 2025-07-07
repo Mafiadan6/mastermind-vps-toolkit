@@ -22,7 +22,9 @@ first_run_setup() {
     
     # Server name
     local server_name
-    server_name=$(get_input "Server Name" "" "$(hostname)")
+    local default_hostname
+    default_hostname=$(hostname 2>/dev/null || echo "vps-server")
+    server_name=$(get_input "Server Name" "" "$default_hostname")
     
     # Admin email
     local admin_email
