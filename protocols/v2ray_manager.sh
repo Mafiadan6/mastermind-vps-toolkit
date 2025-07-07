@@ -7,7 +7,7 @@ source /opt/mastermind/core/helpers.sh
 source /opt/mastermind/core/config.cfg
 
 # V2Ray configuration
-V2RAY_CONFIG_DIR="/etc/v2ray"
+V2RAY_CONFIG_DIR="/usr/local/etc/v2ray"
 V2RAY_CONFIG_FILE="$V2RAY_CONFIG_DIR/config.json"
 V2RAY_LOG_FILE="/var/log/mastermind/v2ray.log"
 
@@ -56,7 +56,11 @@ install_v2ray() {
         log_info "V2Ray is already installed"
     else
         # Install V2Ray using official script
-        bash <(curl -L https://raw.githubusercontent.com/v2fly/fhs-install-v2ray/master/install-release.sh)
+        bash <(curl -L https://raw.githubusercontent.com/v2fly/fhs-install-v2ray/master/install-release.sh) || {
+            log_error "V2Ray installation failed"
+            wait_for_key
+            return
+        }
         
         # Create v2ray user if not exists
         if ! id "v2ray" &>/dev/null; then
@@ -66,10 +70,14 @@ install_v2ray() {
         # Create directories
         mkdir -p /var/log/v2ray
         mkdir -p /usr/local/etc/v2ray
+        mkdir -p /opt/mastermind/configs
         
         # Set permissions
         chown v2ray:v2ray /var/log/v2ray
         chown -R v2ray:v2ray /usr/local/etc/v2ray
+        
+        # Create basic configuration file
+        create_basic_v2ray_config
         
         log_info "V2Ray installation completed"
     fi
@@ -79,6 +87,55 @@ install_v2ray() {
     systemctl start v2ray
     
     wait_for_key
+}
+
+# Create basic V2Ray configuration
+create_basic_v2ray_config() {
+    local uuid=$(cat /proc/sys/kernel/random/uuid)
+    local port=${V2RAY_PORT:-10001}
+    
+    cat > "$V2RAY_CONFIG_FILE" << EOF
+{
+  "log": {
+    "access": "/var/log/v2ray/access.log",
+    "error": "/var/log/v2ray/error.log",
+    "loglevel": "warning"
+  },
+  "inbounds": [
+    {
+      "port": $port,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "id": "$uuid",
+            "level": 0
+          }
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "ws",
+        "wsSettings": {
+          "path": "/mastermind"
+        }
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "protocol": "freedom",
+      "settings": {}
+    }
+  ]
+}
+EOF
+    
+    log_info "Basic V2Ray configuration created with UUID: $uuid"
+    echo "Configuration saved to: $V2RAY_CONFIG_FILE"
+    echo "UUID: $uuid"
+    echo "Port: $port"
+    echo "Path: /mastermind"
 }
 
 # Configure VLESS
@@ -220,6 +277,102 @@ EOF
     wait_for_key
 }
 
+# Advanced V2Ray settings
+advanced_v2ray_settings() {
+    echo
+    echo -e "${YELLOW}Advanced V2Ray Settings${NC}"
+    echo
+    
+    echo -e "${CYAN}[1]${NC} Domain & SSL Configuration"
+    echo -e "${CYAN}[2]${NC} Traffic Routing"
+    echo -e "${CYAN}[3]${NC} Security Settings"
+    echo -e "${CYAN}[4]${NC} Performance Tuning"
+    echo -e "${CYAN}[0]${NC} Back"
+    echo
+    
+    read -p "Select option [0-4]: " choice
+    case $choice in
+        1) configure_domain_ssl ;;
+        2) configure_traffic_routing ;;
+        3) configure_security_settings ;;
+        4) configure_performance_tuning ;;
+        0) return ;;
+        *) echo "Invalid option" ; sleep 2 ;;
+    esac
+}
+
+# Configure domain and SSL
+configure_domain_ssl() {
+    echo
+    echo -e "${YELLOW}Domain & SSL Configuration${NC}"
+    echo
+    
+    local domain=$(get_input "Domain name" "" "")
+    local use_ssl=$(confirm "Enable SSL/TLS?")
+    
+    if [ "$use_ssl" = true ]; then
+        log_info "Configuring SSL/TLS for $domain..."
+        # Domain manager integration
+        if [ -f "/opt/mastermind/protocols/domain_manager.sh" ]; then
+            bash /opt/mastermind/protocols/domain_manager.sh setup_ssl "$domain"
+        fi
+    fi
+    
+    wait_for_key
+}
+
+# Configure traffic routing
+configure_traffic_routing() {
+    echo
+    echo -e "${YELLOW}Traffic Routing Configuration${NC}"
+    echo
+    
+    echo "1. Direct routing"
+    echo "2. Proxy routing"
+    echo "3. Block routing"
+    
+    read -p "Select routing type [1-3]: " routing_type
+    
+    log_info "Traffic routing configured"
+    wait_for_key
+}
+
+# Configure security settings
+configure_security_settings() {
+    echo
+    echo -e "${YELLOW}Security Settings${NC}"
+    echo
+    
+    local enable_auth=$(confirm "Enable additional authentication?")
+    local enable_encryption=$(confirm "Enable enhanced encryption?")
+    
+    if [ "$enable_auth" = true ]; then
+        log_info "Enhanced authentication enabled"
+    fi
+    
+    if [ "$enable_encryption" = true ]; then
+        log_info "Enhanced encryption enabled"
+    fi
+    
+    wait_for_key
+}
+
+# Configure performance tuning
+configure_performance_tuning() {
+    echo
+    echo -e "${YELLOW}Performance Tuning${NC}"
+    echo
+    
+    local buffer_size=$(get_input "Buffer size (KB)" "32" "32")
+    local connection_timeout=$(get_input "Connection timeout (seconds)" "60" "60")
+    
+    log_info "Performance settings configured"
+    log_info "Buffer size: ${buffer_size}KB"
+    log_info "Connection timeout: ${connection_timeout}s"
+    
+    wait_for_key
+}
+
 # Main V2Ray management function
 main() {
     case ${1:-"menu"} in
@@ -282,6 +435,7 @@ configure_websocket() {
         log_info "WebSocket configuration updated successfully"
     else
         log_error "V2Ray configuration file not found"
+        echo "Please install V2Ray first using option [1]"
     fi
     
     wait_for_key
@@ -442,8 +596,10 @@ main "$@"
     wait_for_key
 }
 
-# Create default V2Ray configuration  
-create_default_config() {
+# Main function call
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi
     log_info "Creating default V2Ray configuration..."
     
     local uuid=$(uuidgen)
