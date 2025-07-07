@@ -252,24 +252,166 @@ main() {
     esac
 }
 
-# Missing functions for V2Ray menu
+# Configure WebSocket with domain
 configure_websocket() {
-    echo "WebSocket configuration - Coming soon"
+    echo
+    echo -e "${YELLOW}WebSocket Configuration${NC}"
+    echo
+    
+    local domain=$(get_input "Domain name (optional, leave empty for IP-only)" "" "")
+    local path=$(get_input "WebSocket path" "" "/mastermind")
+    
+    # Configure WebSocket settings in V2Ray config
+    if [ -f "$V2RAY_CONFIG_FILE" ]; then
+        # Update existing config for WebSocket
+        log_info "Updating V2Ray configuration for WebSocket..."
+        
+        # Create backup
+        cp "$V2RAY_CONFIG_FILE" "$V2RAY_CONFIG_FILE.bak"
+        
+        # Update the WebSocket settings
+        jq --arg path "$path" '.inbounds[0].streamSettings.wsSettings.path = $path' "$V2RAY_CONFIG_FILE" > /tmp/v2ray_temp.json
+        mv /tmp/v2ray_temp.json "$V2RAY_CONFIG_FILE"
+        
+        if [ -n "$domain" ]; then
+            echo "Domain: $domain" >> /opt/mastermind/configs/v2ray_domain.txt
+            log_info "Domain $domain configured for V2Ray"
+        fi
+        
+        systemctl restart v2ray
+        log_info "WebSocket configuration updated successfully"
+    else
+        log_error "V2Ray configuration file not found"
+    fi
+    
     wait_for_key
 }
 
+# Generate client configuration
 generate_client_config() {
-    echo "Client config generation - Coming soon"
+    echo
+    echo -e "${YELLOW}Generate Client Configuration${NC}"
+    echo
+    
+    if [ ! -f "$V2RAY_CONFIG_FILE" ]; then
+        log_error "V2Ray configuration not found. Please configure V2Ray first."
+        wait_for_key
+        return
+    fi
+    
+    local uuid=$(jq -r '.inbounds[0].settings.clients[0].id' "$V2RAY_CONFIG_FILE" 2>/dev/null)
+    local port=$(jq -r '.inbounds[0].port' "$V2RAY_CONFIG_FILE" 2>/dev/null)
+    local path=$(jq -r '.inbounds[0].streamSettings.wsSettings.path' "$V2RAY_CONFIG_FILE" 2>/dev/null)
+    local server_ip=$(curl -s ifconfig.me 2>/dev/null || echo "YOUR_SERVER_IP")
+    
+    echo -e "${GREEN}V2Ray Client Configuration:${NC}"
+    echo
+    echo -e "${YELLOW}Server Details:${NC}"
+    echo -e "  Address: $server_ip"
+    echo -e "  Port: $port"
+    echo -e "  UUID: $uuid"
+    echo -e "  Path: $path"
+    echo -e "  Network: WebSocket"
+    echo -e "  Security: none"
+    echo
+    echo -e "${YELLOW}Client Link (VLESS):${NC}"
+    echo "vless://$uuid@$server_ip:$port?type=ws&path=$path#Mastermind-VPS"
+    echo
+    
+    # Save to file
+    cat > /opt/mastermind/configs/v2ray_client.txt << EOF
+V2Ray Client Configuration
+
+Server: $server_ip
+Port: $port
+UUID: $uuid
+Path: $path
+Network: WebSocket
+Security: none
+
+Client Link:
+vless://$uuid@$server_ip:$port?type=ws&path=$path#Mastermind-VPS
+EOF
+    
+    echo -e "${GREEN}Configuration saved to: /opt/mastermind/configs/v2ray_client.txt${NC}"
     wait_for_key
 }
 
+# View V2Ray logs
 view_v2ray_logs() {
-    echo "V2Ray logs view - Coming soon"
+    echo
+    echo -e "${YELLOW}V2Ray Service Logs${NC}"
+    echo
+    
+    echo -e "${CYAN}Recent V2Ray logs:${NC}"
+    journalctl -u v2ray -n 50 --no-pager
+    echo
+    
+    if [ -f "/var/log/mastermind/v2ray-access.log" ]; then
+        echo -e "${CYAN}Access logs:${NC}"
+        tail -20 /var/log/mastermind/v2ray-access.log
+    fi
+    
+    if [ -f "/var/log/mastermind/v2ray-error.log" ]; then
+        echo -e "${CYAN}Error logs:${NC}"
+        tail -20 /var/log/mastermind/v2ray-error.log
+    fi
+    
     wait_for_key
 }
 
+# Advanced V2Ray settings
 advanced_v2ray_settings() {
-    echo "Advanced V2Ray settings - Coming soon"
+    echo
+    echo -e "${YELLOW}Advanced V2Ray Settings${NC}"
+    echo
+    
+    echo -e "${YELLOW}  [1] Domain & SSL Configuration${NC}"
+    echo -e "${YELLOW}  [2] Port Configuration${NC}"
+    echo -e "${YELLOW}  [3] Reset Configuration${NC}"
+    echo -e "${YELLOW}  [4] Export Configuration${NC}"
+    echo -e "${YELLOW}  [5] Import Configuration${NC}"
+    echo -e "${YELLOW}  [0] Back${NC}"
+    echo
+    
+    read -p "Choose option: " advanced_choice
+    
+    case $advanced_choice in
+        1) 
+            # Domain & SSL Configuration
+            if [ -f "$MASTERMIND_HOME/protocols/domain_manager.sh" ]; then
+                bash "$MASTERMIND_HOME/protocols/domain_manager.sh"
+            else
+                echo "Domain manager not found"
+            fi
+            ;;
+        2)
+            read -p "Enter new port for V2Ray: " new_port
+            if [[ "$new_port" =~ ^[0-9]+$ ]] && [ "$new_port" -ge 1 ] && [ "$new_port" -le 65535 ]; then
+                jq --arg port "$new_port" '.inbounds[0].port = ($port | tonumber)' "$V2RAY_CONFIG_FILE" > /tmp/v2ray_temp.json
+                mv /tmp/v2ray_temp.json "$V2RAY_CONFIG_FILE"
+                systemctl restart v2ray
+                log_info "V2Ray port changed to $new_port"
+            else
+                log_error "Invalid port number"
+            fi
+            ;;
+        3)
+            if confirm "Reset V2Ray configuration to defaults?"; then
+                create_default_config
+                systemctl restart v2ray
+                log_info "V2Ray configuration reset"
+            fi
+            ;;
+        4)
+            cp "$V2RAY_CONFIG_FILE" "/opt/mastermind/configs/v2ray_backup_$(date +%Y%m%d_%H%M%S).json"
+            log_info "Configuration exported to configs directory"
+            ;;
+        5)
+            echo "Configuration import functionality available through file replacement"
+            ;;
+    esac
+    
     wait_for_key
 }
 
