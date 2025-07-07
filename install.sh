@@ -46,6 +46,10 @@ warning() {
     echo -e "${YELLOW}[WARNING]${NC} $1"
 }
 
+warn() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
 # Check if running as root
 check_root() {
     if [ "$(id -u)" != "0" ]; then
@@ -186,24 +190,59 @@ create_directories() {
     log "Directory structure created"
 }
 
-# Download file from GitHub
+# Download file from GitHub with retry logic
 download_file() {
     local file_path="$1"
     local dest_path="$2"
     local url="${GITHUB_REPO}/${file_path}"
+    local max_retries=3
+    local retry_delay=5
+    local retries=0
     
-    if curl -sSL "$url" -o "$dest_path"; then
-        log "Downloaded: $file_path"
-        return 0
-    else
-        error "Failed to download: $file_path"
+    while [ $retries -lt $max_retries ]; do
+        if curl -sSL --connect-timeout 10 --max-time 30 "$url" -o "$dest_path"; then
+            log "Downloaded: $file_path"
+            return 0
+        else
+            retries=$((retries + 1))
+            if [ $retries -lt $max_retries ]; then
+                warn "Failed to download $file_path (attempt $retries/$max_retries), retrying in ${retry_delay}s..."
+                sleep $retry_delay
+            else
+                error "Failed to download: $file_path after $max_retries attempts"
+                return 1
+            fi
+        fi
+    done
+}
+
+# Test network connectivity
+test_network() {
+    log "Testing network connectivity to GitHub..."
+    
+    if ! ping -c 1 8.8.8.8 >/dev/null 2>&1; then
+        error "No internet connection available"
         return 1
     fi
+    
+    if ! curl -sSL --connect-timeout 5 --max-time 10 "${GITHUB_REPO}/README.md" >/dev/null 2>&1; then
+        error "Cannot connect to GitHub repository"
+        return 1
+    fi
+    
+    log "Network connectivity test passed"
+    return 0
 }
 
 # Install core files from GitHub
 install_core_files() {
     log "Downloading and installing core files from GitHub..."
+    
+    # Test network connectivity first
+    if ! test_network; then
+        error "Network test failed. Cannot proceed with downloads."
+        return 1
+    fi
     
     # Core files
     download_file "core/menu.sh" "$INSTALL_DIR/core/menu.sh"
