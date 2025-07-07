@@ -27,10 +27,10 @@ import ssl
 
 # Configuration
 SOCKS_PORT = int(os.getenv('SOCKS_PORT', '1080'))
-RESPONSE_PORTS = [int(p) for p in os.getenv('RESPONSE_PORTS', '101,200,300,301').split(',')]
-RESPONSE_MSG = os.getenv('RESPONSE_MSG', 'Mastermind VPS Toolkit')
+RESPONSE_PORTS = [int(p) for p in os.getenv('RESPONSE_PORTS', '80,8080,8888,443').split(',')]
+RESPONSE_MSG = os.getenv('RESPONSE_MSG', 'HTTP/1.1 101 <span style="color: #9fff;"><strong>MasterMind!!</strong></span>')
 WEBSOCKET_PORT = int(os.getenv('WEBSOCKET_PORT', '8080'))
-HTTP_PROXY_PORT = int(os.getenv('HTTP_PROXY_PORT', '8082'))
+HTTP_PROXY_PORT = int(os.getenv('HTTP_PROXY_PORT', '8888'))
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 ENABLE_WEBSOCKET = os.getenv('ENABLE_WEBSOCKET', 'true').lower() == 'true'
 ENABLE_HTTP_PROXY = os.getenv('ENABLE_HTTP_PROXY', 'true').lower() == 'true'
@@ -247,57 +247,48 @@ class HTTPResponseHandler(BaseHTTPRequestHandler):
         self.do_GET()
         
     def generate_response(self):
-        """Generate custom response"""
+        """Generate SSH server response message for tunneling apps"""
         port = self.server.server_port
         
-        html = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>{RESPONSE_MSG}</title>
-            <style>
-                body {{
-                    font-family: Arial, sans-serif;
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    color: white;
-                    text-align: center;
-                    padding: 50px;
-                }}
-                .container {{
-                    max-width: 600px;
-                    margin: 0 auto;
-                    background: rgba(0,0,0,0.3);
-                    padding: 40px;
-                    border-radius: 10px;
-                }}
-                h1 {{
-                    font-size: 2.5em;
-                    margin-bottom: 20px;
-                }}
-                .info {{
-                    font-size: 1.2em;
-                    margin: 20px 0;
-                }}
-                .port {{
-                    font-size: 3em;
-                    font-weight: bold;
-                    color: #ffd700;
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h1>{RESPONSE_MSG}</h1>
-                <div class="port">Port {port}</div>
-                <div class="info">
-                    <p>Server: {socket.gethostname()}</p>
-                    <p>Time: {time.strftime('%Y-%m-%d %H:%M:%S')}</p>
-                    <p>Status: Active</p>
-                </div>
-            </div>
-        </body>
-        </html>
-        """
+        # Generate SSH-style server response like shown in NPV Tunnel
+        ssh_responses = {
+            80: 'SSH-2.0-dropbear_2020.81',
+            8080: 'HTTP/1.1 101 <span style="color: #9fff;"><strong>MasterMind!!</strong></span>',
+            8888: '<div style="font-family: monospace; background-color: #000; color: #0f0; padding: 10px; text-align: center; border: 1px solid #0f0;"><strong style="font-size: 18px;">MasterMind\'s Server</strong><br>For support: Contact <span style="color: #00f;">@bitcockli</span> on Telegram<br><em style="color: #f00;">WARNING: Unauthorized access prohibited. All connections monitored.</em></div>',
+            443: 'HTTP/1.1 101 <span style="color: #9fff;"><strong>MasterMind!!</strong></span>'
+        }
+        
+        # Get response for current port
+        response = ssh_responses.get(port, 'SSH-2.0-dropbear_2020.81')
+        
+        # Create minimal HTML wrapper that shows the SSH response
+        html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <title>SSH Server Response</title>
+    <style>
+        body {{
+            font-family: monospace;
+            background-color: #000;
+            color: #00ff00;
+            padding: 20px;
+            margin: 0;
+        }}
+        .ssh-response {{
+            background-color: #111;
+            border: 1px solid #333;
+            padding: 15px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+        }}
+    </style>
+</head>
+<body>
+    <div class="ssh-response">
+SSH Server response: {response}
+    </div>
+</body>
+</html>"""
         
         return html
         
