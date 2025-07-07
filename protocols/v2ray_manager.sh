@@ -569,38 +569,10 @@ advanced_v2ray_settings() {
     wait_for_key
 }
 
-# Run main function
-main "$@"
-    
-    # Download and install V2Ray
-    curl -Ls https://raw.githubusercontent.com/v2fly/fhs-install-v2ray/master/install-release.sh | bash
-    
-    if [ $? -eq 0 ]; then
-        log_info "V2Ray installed successfully"
-        
-        # Create configuration directory
-        mkdir -p "$V2RAY_CONFIG_DIR"
-        
-        # Create default configuration
-        create_default_config
-        
-        # Enable and start service
-        systemctl enable v2ray
-        systemctl start v2ray
-        
-        log_info "V2Ray service enabled and started"
-    else
-        log_error "Failed to install V2Ray"
-    fi
-    
-    wait_for_key
-}
-
 # Main function call
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
 fi
-    log_info "Creating default V2Ray configuration..."
     
     local uuid=$(uuidgen)
     
