@@ -1,301 +1,383 @@
 # 🚀 Mastermind VPS Toolkit
 
-A comprehensive terminal-based VPS management toolkit designed for network administrators and system engineers. Provides powerful tools for SSH administration, proxy services, network optimization, and advanced protocol management.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Version](https://img.shields.io/badge/version-5.3.0-blue.svg)](https://github.com/Mafiadan6/mastermind-vps-toolkit)
+[![Platform](https://img.shields.io/badge/platform-Ubuntu%20%7C%20Debian-orange.svg)](https://ubuntu.com/)
 
-[![Version](https://img.shields.io/badge/version-4.0.0-blue.svg)](https://github.com/Mafiadan6/mastermind-vps-toolkit)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Ubuntu%20%7C%20Debian-orange.svg)](https://github.com/Mafiadan6/mastermind-vps-toolkit)
-
-## 📋 Table of Contents
-
-- [Features](#-features)
-- [Quick Installation](#-quick-installation)
-- [System Requirements](#-system-requirements)
-- [Usage](#-usage)
-- [Port Configuration](#-port-configuration)
-- [User Management](#-user-management)
-- [Protocols Supported](#-protocols-supported)
-- [Security Features](#-security-features)
-- [Documentation](#-documentation)
-- [Support](#-support)
+A comprehensive terminal-based VPS management toolkit designed for network administrators and system engineers. Provides powerful tools for SSH administration, proxy management, network optimization, and complete VPS setup with an enhanced interactive CLI experience.
 
 ## ✨ Features
 
-### 🔐 User Management
-- **SSH User Creation** with proper credential display and connection info
-- **Usage Limits System** with data (GB), time (days), and connection limits
-- **Automatic Enforcement** - users disabled when limits exceeded
-- **Real-time Monitoring** of user activity and resource usage
+### 🔒 **Complete Proxy Suite**
+- **SOCKS5 Proxy** (Port 1080) - Standard proxy for apps & browsers
+- **WebSocket Tunnel** (Port 8080) - For NPV Tunnel, HTTP Injector, etc.
+- **HTTP Proxy** (Port 8888) - Web browser proxy with CONNECT support
+- **Response Servers** (Ports 9000-9003) - MasterMind branded response ports
 
-### 🌐 Protocol Support
-- **SOCKS5 Proxy** (Port 1080) - Standard proxy protocol
-- **WebSocket Proxy** (Port 8080) - For modern web applications
-- **HTTP Proxy** (Port 8888) - Traditional HTTP proxy
-- **SSH Server Responses** - Custom responses for tunneling apps
-- **V2Ray VLESS/VMESS** - Advanced proxy protocol
-- **TCP Bypass** - Network optimization
+### 🌐 **Advanced Protocols**
+- **V2Ray VLESS/VMESS** - Advanced proxy protocol with WebSocket support
+- **SSH TLS Tunnel** (Port 443) - SSL/TLS encrypted SSH connections
+- **Dropbear SSH** (Ports 444-445) - Lightweight SSH server
+- **TCP Bypass** - Network optimization and traffic routing
 
-### 🛡️ Security & Monitoring
-- **Fail2Ban Integration** - Automated intrusion prevention
-- **UFW Firewall Management** - Simple firewall configuration
-- **SSH Hardening** - Security best practices
-- **Real-time System Monitoring** - CPU, memory, disk usage
+### 👥 **User Management**
+- SSH user creation optimized for mobile apps
+- Usage limits with data/time/connection controls
+- User activity monitoring and reporting
+- Bulk user operations and permissions management
 
-### 🎨 Advanced Features
-- **QR Code Generation** - Connection configs for mobile apps
-- **Custom SSH Responses** - For tunneling apps like NPV Tunnel
-- **Network Optimization** - BBR, kernel tuning, UDP optimization
-- **Service Management** - systemd integration
-- **Clean Terminal UI** - Modern, non-overlapping menu system
+### 🔧 **System Administration**
+- Network optimization (BBR, TCP tuning, UDP optimization)
+- Security center (firewall, fail2ban, SSH hardening)
+- SSL/TLS certificate management with Let's Encrypt
+- Real-time system monitoring and diagnostics
+- Complete backup and restore functionality
+
+### 📱 **Mobile App Support**
+Optimized configurations for popular mobile tunneling applications:
+- **NPV Tunnel** - WebSocket configuration
+- **HTTP Injector** - HTTP proxy setup
+- **HTTP Custom** - Custom response configurations
+- **TLS Tunnel** - SSL/TLS encryption support
 
 ## 🚀 Quick Installation
 
-### One-Line Install
+### Automatic Installation (Recommended)
 ```bash
+# Download and run the installer
 curl -sSL https://raw.githubusercontent.com/Mafiadan6/mastermind-vps-toolkit/main/install.sh | sudo bash
+
+# Or download first and inspect
+wget https://raw.githubusercontent.com/Mafiadan6/mastermind-vps-toolkit/main/install.sh
+sudo bash install.sh
 ```
 
 ### Manual Installation
 ```bash
-# Download and extract
-wget https://github.com/Mafiadan6/mastermind-vps-toolkit/archive/main.zip
-unzip main.zip
-cd mastermind-vps-toolkit-main
+# Clone the repository
+git clone https://github.com/Mafiadan6/mastermind-vps-toolkit.git
+cd mastermind-vps-toolkit
 
-# Run installer
-sudo bash install.sh
+# Make installer executable and run
+chmod +x install.sh
+sudo ./install.sh
 ```
 
-### Post-Installation
-```bash
-# Start the menu system
-sudo mastermind
+## 📋 System Requirements
 
-# Or run directly
-sudo /opt/mastermind/core/menu.sh
+- **Operating System**: Ubuntu 20.04+ or Debian 10+
+- **RAM**: Minimum 512MB (1GB recommended)
+- **CPU**: 1 vCPU minimum
+- **Storage**: 2GB available space
+- **Network**: Internet connection for installation
+- **Privileges**: Root access (sudo)
+
+## 🎯 Quick Start Guide
+
+### 1. Access the Main Menu
+```bash
+# After installation, access the toolkit
+mastermind
+
+# Or use shortcuts
+menu
+mm
+mvps
 ```
 
-## 📊 System Requirements
+### 2. Mobile App Setup (Most Popular)
+1. Choose **[9] Quick Setup Wizard**
+2. Select **[1] Mobile Apps Setup**
+3. Follow the step-by-step configuration
+4. Get ready-to-use connection details
 
-### Minimum Requirements
-- **OS**: Ubuntu 20.04+ or Debian 10+
-- **RAM**: 512 MB (1 GB recommended)
-- **CPU**: 1 vCPU
-- **Storage**: 1 GB free space
-- **Network**: Public IP address
+### 3. Create SSH Users
+1. Choose **[1] User Administration**
+2. Select **[1] Add SSH User**
+3. Follow the mobile-friendly setup process
+4. Get connection details for your tunneling apps
 
-### Recommended Setup
-- **OS**: Ubuntu 22.04 LTS
-- **RAM**: 2 GB
-- **CPU**: 2 vCPU
-- **Storage**: 5 GB SSD
-- **Network**: Unmetered bandwidth
+## 📱 Mobile App Configuration
 
-## 🎯 Usage
-
-### Starting the Toolkit
-```bash
-# Launch main menu
-sudo mastermind
+### NPV Tunnel Configuration
+```
+Server Host: YOUR_VPS_IP
+Server Port: 8080
+Protocol: WebSocket
+SSH Host: YOUR_VPS_IP
+SSH Port: 443
+Username: [your_username]
+Password: [your_password]
 ```
 
-### Common Tasks
-
-#### Creating SSH Users with Limits
-```bash
-# Interactive SSH user creation
-sudo /opt/mastermind/users/user_manager.sh add_user
-
-# CLI user creation with limits
-python3 /opt/mastermind/users/usage_limits.py add_user username ssh 10 30 5
+### HTTP Injector Configuration
+```
+Proxy Type: HTTP
+Server: YOUR_VPS_IP:8888
+WebSocket: ws://YOUR_VPS_IP:8080
+SSH Host: YOUR_VPS_IP:443
+Username: [your_username] 
+Password: [your_password]
 ```
 
-#### Managing Services
+### Browser Proxy Setup
+```
+SOCKS5: YOUR_VPS_IP:1080
+HTTP: YOUR_VPS_IP:8888
+```
+
+## 🔧 Advanced Features
+
+### V2Ray Management
+- VLESS/VMESS protocol support
+- WebSocket transport configuration
+- Client configuration generation
+- Domain and SSL integration
+
+### Network Optimization
+- **BBR Congestion Control** - Improved network performance
+- **TCP Optimization** - Fast Open, window scaling, buffer tuning
+- **UDP Optimization** - Enhanced UDP performance
+- **Network Diagnostics** - Speed tests, connection monitoring
+
+### Security Features
+- **Firewall Management** - UFW integration with custom rules
+- **Fail2ban Setup** - Intrusion prevention and IP blocking
+- **SSH Hardening** - Key-only auth, port changes, timeouts
+- **SSL/TLS Certificates** - Automated Let's Encrypt integration
+
+### System Monitoring
+- Real-time CPU, memory, and disk usage
+- Active connection monitoring
+- Service status checking
+- Port availability monitoring
+- Log analysis and viewing
+
+## 🛠️ Service Management
+
+### Start All Services
 ```bash
-# Check proxy status
+# Start the main proxy service
+sudo systemctl start python-proxy
+
+# Check service status
 sudo systemctl status python-proxy
 
-# Restart services
-sudo systemctl restart python-proxy v2ray nginx
+# View real-time logs
+sudo journalctl -u python-proxy -f
 ```
 
-#### Monitoring Usage
+### Port Status Check
 ```bash
-# Check user usage
-python3 /opt/mastermind/users/usage_limits.py get_report
+# Check if all ports are listening
+netstat -tuln | grep -E ':(1080|8080|8888|9000|9001|9002|9003) '
 
-# Monitor specific user
-python3 /opt/mastermind/users/usage_limits.py get_report username
+# Or use the built-in test script
+python3 /opt/mastermind/test_proxy_setup.py
 ```
 
-## 🔌 Port Configuration
+## 🔄 Maintenance
 
-### Core Services
-| Service | Port | Protocol | Purpose |
-|---------|------|----------|---------|
-| SOCKS5 Proxy | 1080 | TCP | Standard SOCKS5 proxy |
-| WebSocket Proxy | 8080 | TCP/WS | WebSocket tunneling |
-| HTTP Proxy | 8888 | TCP | HTTP proxy service |
-
-### SSH Server Responses
-These ports serve SSH server responses for tunneling apps:
-| Port | Response Type | Apps |
-|------|---------------|------|
-| 80 | SSH-2.0-dropbear_2020.81 | NPV Tunnel, HTTP Custom |
-| 8080 | HTTP/1.1 101 with styling | HTTP Injector |
-| 8888 | Full styled server message | Custom tunneling apps |
-| 443 | HTTP/1.1 101 with styling | HTTPS tunneling |
-
-### Protocol Services
-| Service | Port | Protocol | Purpose |
-|---------|------|----------|---------|
-| V2Ray VLESS | 80 | TCP | V2Ray protocol |
-| SSH TLS | 443 | TCP | SSH over TLS |
-| Dropbear | 444,445 | TCP | Alternative SSH |
-
-## 👥 User Management
-
-### SSH User Creation
-The toolkit provides enhanced SSH user creation with:
-- **Visual credential display** with connection information
-- **Automatic usage limits** integration
-- **Complete connection details** including SSH commands
-- **Professional formatting** for easy copying
-
-### Usage Limits System
-- **Data Limits**: Set per-user data usage limits in GB
-- **Time Limits**: Account validity periods in days
-- **Connection Limits**: Maximum concurrent connections
-- **Automatic Enforcement**: Users automatically disabled when limits exceeded
-- **Real-time Tracking**: Monitor usage and sessions
-
-### Example Usage Limits
+### Update Toolkit
 ```bash
-# Add user with 10GB, 30 days, 5 connections
-python3 /opt/mastermind/users/usage_limits.py add_user john ssh 10 30 5
-
-# Check user limits
-python3 /opt/mastermind/users/usage_limits.py check_limits john
-
-# Generate usage report
-python3 /opt/mastermind/users/usage_limits.py get_report
+# From the main menu: [11] Advanced Settings → [9] Update Toolkit
+# Or manually:
+cd /opt/mastermind && git pull
 ```
 
-## 🌐 Protocols Supported
+### Backup Configuration
+```bash
+# From the main menu: [7] Backup & Restore
+# Creates backup of all configurations and user data
+```
 
-### Primary Protocols
-- **SOCKS5** - Industry standard proxy protocol
-- **WebSocket** - Modern web tunneling
-- **HTTP Proxy** - Traditional web proxy
-- **V2Ray VLESS/VMESS** - Advanced proxy with encryption
+### View Logs
+```bash
+# Main toolkit logs
+sudo tail -f /var/log/mastermind/mastermind.log
 
-### SSH Ecosystem
-- **OpenSSH** - Standard SSH server
-- **Dropbear** - Lightweight SSH server
-- **SSH TLS** - SSH over TLS tunnel
+# Service logs
+sudo journalctl -u python-proxy -f
 
-### Additional Features
-- **TCP Bypass** - Network optimization
-- **BadVPN** - VPN solution
-- **Squid Proxy** - High-performance HTTP proxy
+# System logs
+sudo tail -f /var/log/syslog
+```
 
-## 🛡️ Security Features
+## 🔄 Reinstall & Uninstall
 
-### Built-in Security
-- **Fail2Ban** - Automatic IP blocking for failed attempts
-- **UFW Firewall** - Simple firewall management
-- **SSH Key Management** - Secure authentication
-- **User Isolation** - Proper permission management
+### Complete Reinstallation
+```bash
+# Download and run reinstall script
+curl -sSL https://raw.githubusercontent.com/Mafiadan6/mastermind-vps-toolkit/main/reinstall.sh | bash
 
-### Network Security
-- **Port Management** - Controlled port access
-- **Connection Monitoring** - Real-time connection tracking
-- **Usage Auditing** - Comprehensive logging
-- **Intrusion Detection** - Automated threat detection
+# Or if already installed (from menu: [10] System Tools → [11])
+sudo /opt/mastermind/reinstall.sh
+```
 
-## 📚 Documentation
+### Complete Uninstallation
+```bash
+# Download and run uninstall script
+curl -sSL https://raw.githubusercontent.com/Mafiadan6/mastermind-vps-toolkit/main/uninstall.sh | bash
 
-### Configuration Files
-- `core/config.cfg` - Main configuration
-- `users/usage_limits.py` - Usage tracking system
-- `python-proxy.service` - systemd service configuration
+# Or if already installed (from menu: [10] System Tools → [10])
+sudo /opt/mastermind/uninstall.sh
+```
 
-### Log Files
-- `/var/log/mastermind/` - Main log directory
-- `/var/log/mastermind/usage-limits.log` - Usage tracking logs
-- `/var/log/mastermind/user-management.log` - User management logs
+**What the uninstall script removes:**
+- All proxy services and configurations
+- Open ports closed and firewall rules removed
+- SSH banners and MOTD restored
+- User accounts and access removed
+- System services and cron jobs removed
+- Log files and backups deleted
+- SSL certificates and configurations removed
+- All toolkit files and directories deleted
 
-### Key Scripts
-- `core/menu.sh` - Main menu system (fixed layout)
-- `users/user_manager.sh` - User management
-- `protocols/python_proxy.py` - Proxy services
-- `install.sh` - Installation script
+Your system will be restored to its pre-installation state.
 
-## 🔧 Troubleshooting
+## 🧪 Testing Your Installation
+
+### Automated Testing
+```bash
+# Run comprehensive test suite
+python3 /opt/mastermind/test_proxy_setup.py
+```
+
+### Manual Testing
+```bash
+# Test SOCKS5 proxy
+curl --socks5 YOUR_VPS_IP:1080 https://httpbin.org/ip
+
+# Test HTTP proxy  
+curl --proxy YOUR_VPS_IP:8888 https://httpbin.org/ip
+
+# Test WebSocket connection
+wscat -c ws://YOUR_VPS_IP:8080
+
+# Check all open ports
+sudo netstat -tulpn | grep LISTEN
+```
+
+## 📁 Project Structure
+
+```
+/opt/mastermind/
+├── core/                 # Core system files
+│   ├── menu.sh          # Main interactive menu
+│   ├── helpers.sh       # Helper functions
+│   ├── config.cfg       # Main configuration
+│   └── service_ctl.sh   # Service control
+├── protocols/           # Protocol implementations
+│   ├── python_proxy.py  # Main proxy suite
+│   ├── v2ray_manager.sh # V2Ray management
+│   ├── domain_manager.sh # Domain & SSL
+│   └── ssh_suite.sh     # SSH configurations
+├── users/               # User management
+│   ├── user_manager.sh  # SSH user creation
+│   └── usage_limits.py  # Usage tracking
+├── security/            # Security tools
+│   ├── firewall_manager.sh
+│   ├── fail2ban_setup.sh
+│   └── audit_tool.sh
+├── network/             # Network optimization
+│   ├── bbr.sh
+│   ├── kernel_tuning.sh
+│   └── udp_optimizer.sh
+└── branding/            # QR codes & branding
+    ├── qr_generator.py
+    └── response_servers.py
+```
+
+## 🐛 Troubleshooting
 
 ### Common Issues
 
-#### Service Not Starting
+**Services not starting:**
 ```bash
 # Check service status
 sudo systemctl status python-proxy
 
-# Check logs
-sudo journalctl -u python-proxy -f
-
-# Restart service
+# Restart services
 sudo systemctl restart python-proxy
+
+# Check logs for errors
+sudo journalctl -u python-proxy -n 50
 ```
 
-#### Port Conflicts
+**Ports not accessible:**
 ```bash
-# Check port usage
-sudo netstat -tuln | grep -E ':(1080|8080|8888)'
+# Check if ports are listening
+sudo netstat -tulpn | grep LISTEN
 
-# Kill conflicting processes
-sudo fuser -k 8080/tcp
+# Check firewall rules
+sudo ufw status
+
+# Test local connectivity
+telnet localhost 1080
 ```
 
-#### Usage Limits Not Working
+**SSH connection issues:**
 ```bash
-# Check database
-python3 /opt/mastermind/users/usage_limits.py get_report
+# Verify SSH configuration
+sudo ssh -p 443 username@localhost
 
-# Reset user limits
-python3 /opt/mastermind/users/usage_limits.py add_user username ssh 10 30 5
+# Check SSH logs
+sudo tail -f /var/log/auth.log
+
+# Restart SSH service
+sudo systemctl restart ssh
 ```
 
-## 🤝 Support
+### Performance Optimization
 
-### Getting Help
-- **GitHub Issues**: [Report bugs and feature requests](https://github.com/Mafiadan6/mastermind-vps-toolkit/issues)
-- **Telegram**: Contact @bitcockli for support
-- **Documentation**: Check `/opt/mastermind/` directory for detailed docs
+**Enable BBR (if not auto-enabled):**
+```bash
+echo 'net.core.default_qdisc=fq' >> /etc/sysctl.conf
+echo 'net.ipv4.tcp_congestion_control=bbr' >> /etc/sysctl.conf
+sysctl -p
+```
 
-### Contributing
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+**Optimize system for high connections:**
+```bash
+echo 'net.core.somaxconn = 65535' >> /etc/sysctl.conf
+echo 'net.core.netdev_max_backlog = 5000' >> /etc/sysctl.conf
+sysctl -p
+```
 
-### Reporting Issues
-Please include:
-- OS version and architecture
-- Error messages or logs
-- Steps to reproduce
-- Expected vs actual behavior
+## 🤝 Contributing
 
-## 📄 License
+We welcome contributions! Please feel free to submit issues, feature requests, or pull requests.
+
+### Development Setup
+```bash
+git clone https://github.com/Mafiadan6/mastermind-vps-toolkit.git
+cd mastermind-vps-toolkit
+
+# Test changes locally
+sudo bash install.sh
+
+# Run tests
+python3 test_proxy_setup.py
+```
+
+## 📜 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
-- Built for network administrators and system engineers
-- Designed for production VPS environments
-- Optimized for Ubuntu 22.04 LTS
-- Community-driven development
+- Built for the VPS and tunneling community
+- Optimized for mobile tunneling applications
+- Inspired by network administration best practices
+
+## 📞 Support
+
+- **GitHub Issues**: [Create an issue](https://github.com/Mafiadan6/mastermind-vps-toolkit/issues)
+- **Documentation**: Check the `/docs` folder for detailed guides
+- **Community**: Share your configurations and tips
 
 ---
 
-**Mastermind VPS Toolkit v4.0.0** - Advanced VPS Management Made Simple
+**Made with ❤️ for the VPS community**
+
+*Mastermind VPS Toolkit v5.3.0 - Complete VPS Management Solution*
