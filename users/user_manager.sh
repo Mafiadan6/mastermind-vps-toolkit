@@ -3,8 +3,19 @@
 # Mastermind VPS Toolkit - User Manager
 # Version: 1.0.0
 
-source /opt/mastermind/core/helpers.sh
-source /opt/mastermind/core/config.cfg
+# Load configuration and helper functions
+MASTERMIND_HOME="${MASTERMIND_HOME:-/opt/mastermind}"
+if [ -f "$MASTERMIND_HOME/core/helpers.sh" ]; then
+    source "$MASTERMIND_HOME/core/helpers.sh"
+elif [ -f "core/helpers.sh" ]; then
+    source "core/helpers.sh"
+fi
+
+if [ -f "$MASTERMIND_HOME/core/config.cfg" ]; then
+    source "$MASTERMIND_HOME/core/config.cfg"
+elif [ -f "core/config.cfg" ]; then
+    source "core/config.cfg"
+fi
 
 # Show user management menu
 show_user_menu() {
@@ -39,13 +50,14 @@ show_user_menu() {
     echo -e "${CYAN}══════════════════════════════════════════════════════════════════════════════${NC}"
 }
 
-# Add SSH user
+# Add SSH user (simplified for mobile apps)
 add_ssh_user() {
     echo
-    echo -e "${YELLOW}Add SSH User${NC}"
+    echo -e "${YELLOW}Add SSH User for Mobile Apps${NC}"
+    echo -e "${CYAN}Quick setup for NPV Tunnel, HTTP Injector, etc.${NC}"
     echo
     
-    # Get user details
+    # Get basic user details
     local username
     while true; do
         username=$(get_input "Username" "" "")
@@ -60,33 +72,26 @@ add_ssh_user() {
     
     local password
     if confirm "Generate random password?"; then
-        password=$(generate_password 16)
+        password=$(generate_password 12)
         echo -e "${GREEN}Generated password: $password${NC}"
     else
         password=$(get_input "Password" "" "")
     fi
     
-    local shell=$(get_input "Shell" "" "/bin/bash")
-    local home_dir=$(get_input "Home directory" "" "/home/$username")
+    # Use simple defaults for mobile app users
+    local shell="/bin/bash"
+    local home_dir="/home/$username"
     
     echo
-    echo -e "${YELLOW}Usage Limits Configuration:${NC}"
-    local data_limit=$(get_input "Data limit (GB)" "" "$DEFAULT_DATA_LIMIT_GB")
-    local days_limit=$(get_input "Account validity (days)" "" "$DEFAULT_DAYS_LIMIT")
-    local connection_limit=$(get_input "Max concurrent connections" "" "$DEFAULT_CONNECTION_LIMIT")
+    echo -e "${YELLOW}Data Usage Limits (optional):${NC}"
+    local data_limit=$(get_input "Data limit (GB)" "10" "")
+    local days_limit=$(get_input "Account validity (days)" "30" "")
+    local connection_limit=$(get_input "Max concurrent connections" "3" "")
     
-    echo
-    echo -e "${YELLOW}Additional options:${NC}"
+    # Simplified setup - no SSH keys or sudo for mobile users
     local create_ssh_key=false
     local add_to_sudo=false
     local set_quota=false
-    
-    if confirm "Create SSH key pair?"; then
-        create_ssh_key=true
-    fi
-    
-    if confirm "Add to sudo group?"; then
-        add_to_sudo=true
     fi
     
     if confirm "Set disk quota?"; then
@@ -150,10 +155,29 @@ add_ssh_user() {
         echo -e "  📅 Account Validity: ${WHITE}${days_limit} days${NC}"
         echo -e "  🔗 Max Connections: ${WHITE}${connection_limit}${NC}"
         echo
-        echo -e "${YELLOW}SSH Connection Info:${NC}"
-        echo -e "  🌐 Host: ${WHITE}$(curl -s ifconfig.me 2>/dev/null || echo "Your-Server-IP")${NC}"
-        echo -e "  🔌 Port: ${WHITE}$SSH_PORT${NC}"
-        echo -e "  📱 Connection Command: ${WHITE}ssh -p $SSH_PORT $username@$(curl -s ifconfig.me 2>/dev/null || echo "Your-Server-IP")${NC}"
+        echo -e "${YELLOW}Mobile App Configuration:${NC}"
+        local server_ip=$(curl -s ifconfig.me 2>/dev/null || echo "Your-Server-IP")
+        echo -e "  🌐 Server IP: ${WHITE}$server_ip${NC}"
+        echo -e "  🔌 SSH Port: ${WHITE}443${NC} (for SSL/TLS tunnel)"
+        echo -e "  👤 Username: ${WHITE}$username${NC}"
+        echo -e "  🔑 Password: ${WHITE}$password${NC}"
+        echo
+        echo -e "${YELLOW}📱 For NPV Tunnel:${NC}"
+        echo -e "  ${WHITE}• Host:${NC} $server_ip"
+        echo -e "  ${WHITE}• Port:${NC} 8080 (WebSocket)"
+        echo -e "  ${WHITE}• SSH Host:${NC} $server_ip"
+        echo -e "  ${WHITE}• SSH Port:${NC} 443"
+        echo -e "  ${WHITE}• Username:${NC} $username"
+        echo -e "  ${WHITE}• Password:${NC} $password"
+        echo
+        echo -e "${YELLOW}📱 For HTTP Injector:${NC}"
+        echo -e "  ${WHITE}• Proxy:${NC} $server_ip:8888"
+        echo -e "  ${WHITE}• SSH Host:${NC} $server_ip:443"
+        echo -e "  ${WHITE}• Username:${NC} $username"
+        echo -e "  ${WHITE}• Password:${NC} $password"
+        echo
+        echo -e "${YELLOW}📱 Connection Test:${NC}"
+        echo -e "  ${WHITE}• SSH Command:${NC} ssh -p 443 $username@$server_ip"
         echo
         echo -e "${GREEN}══════════════════════════════════════════════════════════════════════════════${NC}"
         
