@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
 Mastermind VPS Toolkit - Python Proxy Suite
-Version: 1.0.0
+Version: 2.0.0
 
-This module provides SOCKS5 proxy, HTTP proxy, and WebSocket proxy services
-along with custom HTTP response servers.
+This module provides SOCKS5 proxy, HTTP proxy, WebSocket-to-SSH SOCKS proxy,
+and custom HTTP response servers with adjustable 101 responses.
 """
 
 import os
@@ -20,20 +20,52 @@ import signal
 import json
 import hashlib
 import base64
+import subprocess
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 import websockets
 import ssl
 
-# Configuration
+# Configuration - Fixed port structure to avoid conflicts
 SOCKS_PORT = int(os.getenv('SOCKS_PORT', '1080'))
-RESPONSE_PORTS = [int(p) for p in os.getenv('RESPONSE_PORTS', '80,8080,8888,443').split(',')]
+RESPONSE_PORTS = [int(p) for p in os.getenv('RESPONSE_PORTS', '9000,9001,9002,9003').split(',')]
 RESPONSE_MSG = os.getenv('RESPONSE_MSG', 'HTTP/1.1 101 <span style="color: #9fff;"><strong>MasterMind!!</strong></span>')
-WEBSOCKET_PORT = int(os.getenv('WEBSOCKET_PORT', '8080'))
+WEBSOCKET_PORT = int(os.getenv('WEBSOCKET_PORT', '8080'))  # WebSocket-to-SSH SOCKS proxy
 HTTP_PROXY_PORT = int(os.getenv('HTTP_PROXY_PORT', '8888'))
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 ENABLE_WEBSOCKET = os.getenv('ENABLE_WEBSOCKET', 'true').lower() == 'true'
 ENABLE_HTTP_PROXY = os.getenv('ENABLE_HTTP_PROXY', 'true').lower() == 'true'
+
+# SSH Configuration for WebSocket proxy
+SSH_HOST = os.getenv('SSH_HOST', 'localhost')
+SSH_PORT = int(os.getenv('SSH_PORT', '22'))
+SSH_USER = os.getenv('SSH_USER', 'root')
+SSH_PASS = os.getenv('SSH_PASS', '')
+SSH_KEY_PATH = os.getenv('SSH_KEY_PATH', '')
+
+# WebSocket to SSH SOCKS response templates
+RESPONSE_TEMPLATES = {
+    "default": {
+        "Sec-WebSocket-Accept": "base64-key",
+        "X-Protocol": "socks5",
+        "Connection": "Upgrade",
+        "Upgrade": "websocket"
+    },
+    "dropbear": {
+        "Sec-WebSocket-Accept": "dropbear-specific-key",
+        "X-Server": "Dropbear",
+        "X-SSH-Version": "SSH-2.0-dropbear_2020.81",
+        "Connection": "Upgrade",
+        "Upgrade": "websocket"
+    },
+    "openssh": {
+        "Sec-WebSocket-Accept": "openssh-specific-key", 
+        "X-Server": "OpenSSH",
+        "X-SSH-Version": "SSH-2.0-OpenSSH_8.9",
+        "Connection": "Upgrade",
+        "Upgrade": "websocket"
+    }
+}
 
 # Setup logging
 try:
@@ -251,14 +283,15 @@ class HTTPResponseHandler(BaseHTTPRequestHandler):
         port = self.server.server_port
         
         # Generate SSH-style server response like shown in NPV Tunnel
+        # Updated for new port structure (9000-9003) - matches NPV Tunnel display
         ssh_responses = {
-            80: 'SSH-2.0-dropbear_2020.81',
-            8080: 'HTTP/1.1 101 <span style="color: #9fff;"><strong>MasterMind!!</strong></span>',
-            8888: '<div style="font-family: monospace; background-color: #000; color: #0f0; padding: 10px; text-align: center; border: 1px solid #0f0;"><strong style="font-size: 18px;">MasterMind\'s Server</strong><br>For support: Contact <span style="color: #00f;">@bitcockli</span> on Telegram<br><em style="color: #f00;">WARNING: Unauthorized access prohibited. All connections monitored.</em></div>',
-            443: 'HTTP/1.1 101 <span style="color: #9fff;"><strong>MasterMind!!</strong></span>'
+            9000: 'SSH-2.0-dropbear_2020.81',
+            9001: '<div style="font-family: monospace; background-color: #000; color: #0f0; padding: 10px; text-align: center; border: 1px solid #0f0;"><strong style="font-size: 18px;">MasterMind\'s Server</strong><br>For support: Contact <span style="color: #00f;">@bitcockli</span> on Telegram<br><em style="color: #f00;">WARNING: Unauthorized access prohibited. All connections monitored.</em></div>',
+            9002: 'HTTP/1.1 101 <span style="color: #9fff;"><strong>MasterMind!!</strong></span>',
+            9003: 'SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.1'
         }
         
-        # Get response for current port
+        # Get response for current port or default
         response = ssh_responses.get(port, 'SSH-2.0-dropbear_2020.81')
         
         # Create minimal HTML wrapper that shows the SSH response
@@ -323,41 +356,240 @@ class HTTPResponseServer:
             self.server.shutdown()
             self.server.server_close()
             
-class WebSocketProxy:
-    """WebSocket to TCP proxy"""
+class WebSocketToSSHProxy:
+    """WebSocket to SSH SOCKS proxy implementation"""
     
     def __init__(self, host='0.0.0.0', port=WEBSOCKET_PORT):
         self.host = host
         self.port = port
         self.server = None
+        self.ssh_connections = {}
         
     async def start(self):
         """Start the WebSocket proxy server"""
         try:
             self.server = await websockets.serve(
-                self.handle_websocket,
+                self.handle_websocket_connection,
                 self.host,
-                self.port
+                self.port,
+                subprotocols=["socks"]
             )
-            logger.info(f"WebSocket proxy started on {self.host}:{self.port}")
+            logger.info(f"WebSocket-to-SSH SOCKS proxy started on {self.host}:{self.port}")
             
         except Exception as e:
-            logger.error(f"Failed to start WebSocket proxy: {e}")
+            logger.error(f"Failed to start WebSocket-to-SSH proxy: {e}")
             
-    async def handle_websocket(self, websocket, path):
-        """Handle WebSocket connections"""
+    async def handle_websocket_connection(self, websocket, path):
+        """Handle WebSocket connections with SSH SOCKS tunneling"""
         try:
-            logger.debug(f"New WebSocket connection from {websocket.remote_address}")
+            remote_addr = websocket.remote_address
+            logger.info(f"New WebSocket connection from {remote_addr}")
             
-            # Handle WebSocket to TCP proxy logic here
-            # This is a basic echo server for demonstration
-            async for message in websocket:
-                await websocket.send(f"Echo: {message}")
+            # Perform custom handshake with adjustable 101 response
+            await self.custom_handshake(websocket)
+            
+            # Create SSH tunnel and SOCKS proxy
+            ssh_process, socks_port = await self.create_ssh_tunnel()
+            
+            if ssh_process and socks_port:
+                # Store SSH connection
+                connection_id = f"{remote_addr[0]}:{remote_addr[1]}"
+                self.ssh_connections[connection_id] = ssh_process
+                
+                # Create bridge between WebSocket and SOCKS proxy
+                await self.create_tunnel_bridge(websocket, socks_port)
+            else:
+                await websocket.close(code=1011, reason="SSH tunnel creation failed")
                 
         except websockets.exceptions.ConnectionClosed:
             logger.debug("WebSocket connection closed")
         except Exception as e:
-            logger.error(f"WebSocket error: {e}")
+            logger.error(f"WebSocket connection error: {e}")
+        finally:
+            # Clean up SSH connection
+            if hasattr(websocket, 'remote_address'):
+                connection_id = f"{websocket.remote_address[0]}:{websocket.remote_address[1]}"
+                if connection_id in self.ssh_connections:
+                    self.cleanup_ssh_connection(connection_id)
+                    
+    async def custom_handshake(self, websocket):
+        """Perform custom handshake with adjustable 101 response"""
+        try:
+            # Determine response template based on User-Agent or other headers
+            template = "default"
+            user_agent = websocket.request_headers.get("User-Agent", "").lower()
+            
+            if "dropbear" in user_agent:
+                template = "dropbear"
+            elif "openssh" in user_agent:
+                template = "openssh"
+                
+            # Get response headers from template
+            headers = RESPONSE_TEMPLATES.get(template, RESPONSE_TEMPLATES["default"])
+            
+            # Generate proper WebSocket accept key
+            websocket_key = websocket.request_headers.get("Sec-WebSocket-Key", "")
+            if websocket_key:
+                accept_key = self.generate_websocket_accept_key(websocket_key)
+                headers["Sec-WebSocket-Accept"] = accept_key
+                
+            logger.debug(f"Using handshake template: {template}")
+            
+        except Exception as e:
+            logger.error(f"Handshake error: {e}")
+            
+    def generate_websocket_accept_key(self, websocket_key):
+        """Generate proper WebSocket accept key"""
+        guid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+        combined = websocket_key + guid
+        sha1_hash = hashlib.sha1(combined.encode()).digest()
+        return base64.b64encode(sha1_hash).decode()
+        
+    async def create_ssh_tunnel(self):
+        """Create SSH tunnel with dynamic SOCKS proxy"""
+        try:
+            # Find available port for SOCKS proxy
+            socks_port = self.find_available_port()
+            
+            # Build SSH command for dynamic port forwarding
+            ssh_cmd = [
+                "ssh",
+                "-N",  # Don't execute remote commands
+                "-D", str(socks_port),  # Dynamic port forwarding (SOCKS)
+                "-o", "StrictHostKeyChecking=no",
+                "-o", "UserKnownHostsFile=/dev/null",
+                "-o", "ServerAliveInterval=30",
+                "-o", "ServerAliveCountMax=3"
+            ]
+            
+            # Add authentication
+            if SSH_KEY_PATH and os.path.exists(SSH_KEY_PATH):
+                ssh_cmd.extend(["-i", SSH_KEY_PATH])
+            elif SSH_PASS:
+                # Use sshpass for password authentication
+                ssh_cmd = ["sshpass", "-p", SSH_PASS] + ssh_cmd
+                
+            # Add SSH target
+            ssh_cmd.append(f"{SSH_USER}@{SSH_HOST}")
+            
+            if SSH_PORT != 22:
+                ssh_cmd.extend(["-p", str(SSH_PORT)])
+                
+            # Start SSH process
+            ssh_process = subprocess.Popen(
+                ssh_cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+            
+            # Wait a moment for SSH to establish
+            await asyncio.sleep(2)
+            
+            # Check if SSH tunnel is working
+            if ssh_process.poll() is None:
+                # Test SOCKS proxy connection
+                if await self.test_socks_connection(socks_port):
+                    logger.info(f"SSH tunnel established with SOCKS proxy on port {socks_port}")
+                    return ssh_process, socks_port
+                else:
+                    ssh_process.terminate()
+                    logger.error("SOCKS proxy test failed")
+            else:
+                logger.error("SSH process failed to start")
+                
+            return None, None
+            
+        except Exception as e:
+            logger.error(f"SSH tunnel creation error: {e}")
+            return None, None
+            
+    def find_available_port(self, start_port=10000, end_port=65535):
+        """Find an available port for SOCKS proxy"""
+        for port in range(start_port, end_port):
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.bind(('127.0.0.1', port))
+                    return port
+            except OSError:
+                continue
+        return None
+        
+    async def test_socks_connection(self, socks_port):
+        """Test if SOCKS proxy is working"""
+        try:
+            test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            test_socket.settimeout(5)
+            test_socket.connect(('127.0.0.1', socks_port))
+            test_socket.close()
+            return True
+        except Exception:
+            return False
+            
+    async def create_tunnel_bridge(self, websocket, socks_port):
+        """Create bidirectional bridge between WebSocket and SOCKS proxy"""
+        try:
+            # Connect to SOCKS proxy
+            reader, writer = await asyncio.open_connection('127.0.0.1', socks_port)
+            
+            # Create tasks for bidirectional data relay
+            ws_to_socks_task = asyncio.create_task(
+                self.websocket_to_socks(websocket, writer)
+            )
+            socks_to_ws_task = asyncio.create_task(
+                self.socks_to_websocket(reader, websocket)
+            )
+            
+            # Wait for either task to complete (indicating connection closed)
+            done, pending = await asyncio.wait(
+                [ws_to_socks_task, socks_to_ws_task],
+                return_when=asyncio.FIRST_COMPLETED
+            )
+            
+            # Cancel remaining tasks
+            for task in pending:
+                task.cancel()
+                
+            # Close writer
+            writer.close()
+            await writer.wait_closed()
+            
+        except Exception as e:
+            logger.error(f"Tunnel bridge error: {e}")
+            
+    async def websocket_to_socks(self, websocket, writer):
+        """Relay data from WebSocket to SOCKS proxy"""
+        try:
+            async for message in websocket:
+                if isinstance(message, bytes):
+                    writer.write(message)
+                    await writer.drain()
+                elif isinstance(message, str):
+                    writer.write(message.encode())
+                    await writer.drain()
+        except Exception as e:
+            logger.debug(f"WebSocket to SOCKS relay ended: {e}")
+            
+    async def socks_to_websocket(self, reader, websocket):
+        """Relay data from SOCKS proxy to WebSocket"""
+        try:
+            while True:
+                data = await reader.read(4096)
+                if not data:
+                    break
+                await websocket.send(data)
+        except Exception as e:
+            logger.debug(f"SOCKS to WebSocket relay ended: {e}")
+            
+    def cleanup_ssh_connection(self, connection_id):
+        """Clean up SSH connection"""
+        try:
+            if connection_id in self.ssh_connections:
+                ssh_process = self.ssh_connections[connection_id]
+                ssh_process.terminate()
+                del self.ssh_connections[connection_id]
+                logger.debug(f"Cleaned up SSH connection: {connection_id}")
+        except Exception as e:
+            logger.error(f"SSH cleanup error: {e}")
             
 class HTTPProxyHandler(BaseHTTPRequestHandler):
     """HTTP Proxy handler"""
@@ -458,7 +690,7 @@ class MastermindProxyManager:
         
     def start_all(self):
         """Start all proxy services"""
-        logger.info("Starting Mastermind Proxy Suite...")
+        logger.info("Starting Mastermind Proxy Suite v2.0...")
         
         # Start SOCKS5 server
         self.socks5_server = SOCKS5Server()
@@ -466,15 +698,15 @@ class MastermindProxyManager:
         socks5_thread.daemon = True
         socks5_thread.start()
         
-        # Start HTTP response servers
+        # Start HTTP response servers on new ports (avoiding conflicts)
         for port in RESPONSE_PORTS:
             server = HTTPResponseServer(port)
             server.start()
             self.http_servers.append(server)
             
-        # Start WebSocket proxy if enabled
+        # Start WebSocket-to-SSH SOCKS proxy if enabled
         if ENABLE_WEBSOCKET:
-            self.websocket_proxy = WebSocketProxy()
+            self.websocket_proxy = WebSocketToSSHProxy()
             ws_thread = threading.Thread(target=self._start_websocket)
             ws_thread.daemon = True
             ws_thread.start()
@@ -486,6 +718,8 @@ class MastermindProxyManager:
             
         self.running = True
         logger.info("All proxy services started successfully")
+        logger.info(f"Service ports: SOCKS5({SOCKS_PORT}), WebSocket-SSH({WEBSOCKET_PORT}), HTTP-Proxy({HTTP_PROXY_PORT})")
+        logger.info(f"Response servers on ports: {RESPONSE_PORTS}")
         
     def stop_all(self):
         """Stop all proxy services"""
@@ -501,6 +735,12 @@ class MastermindProxyManager:
         for server in self.http_servers:
             server.stop()
             
+        # Stop WebSocket-to-SSH proxy
+        if self.websocket_proxy:
+            # Clean up all SSH connections
+            for connection_id in list(self.websocket_proxy.ssh_connections.keys()):
+                self.websocket_proxy.cleanup_ssh_connection(connection_id)
+            
         # Stop HTTP proxy
         if self.http_proxy:
             self.http_proxy.stop()
@@ -508,13 +748,14 @@ class MastermindProxyManager:
         logger.info("All proxy services stopped")
         
     def _start_websocket(self):
-        """Start WebSocket proxy in new event loop"""
+        """Start WebSocket-to-SSH proxy in new event loop"""
         try:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             loop.run_until_complete(self.websocket_proxy.start())
+            loop.run_forever()
         except Exception as e:
-            logger.error(f"WebSocket proxy error: {e}")
+            logger.error(f"WebSocket-to-SSH proxy error: {e}")
             
     def signal_handler(self, signum, frame):
         """Handle shutdown signals"""
