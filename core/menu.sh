@@ -1167,7 +1167,7 @@ mobile_apps_setup() {
     echo -e "${CYAN}Step 3: Testing connections...${RESET}"
     echo
     for port in 8080 8888 9001; do
-        if netstat -tuln | grep -q ":$port "; then
+        if ss -tuln 2>/dev/null | grep -q ":$port " || netstat -tuln 2>/dev/null | grep -q ":$port " || lsof -i :$port 2>/dev/null >/dev/null; then
             echo -e "  Port $port: ${GREEN}✓ READY${RESET}"
         else
             echo -e "  Port $port: ${RED}✗ NOT READY${RESET}"
