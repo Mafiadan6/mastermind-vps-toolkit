@@ -32,6 +32,16 @@ show_v2ray_menu() {
         echo -e "${YELLOW}Port:${NC} ${port:-N/A}"
     fi
     
+    # Show TLS status
+    local tls_status="Disabled"
+    if [ -f "$V2RAY_CONFIG_FILE" ]; then
+        local security=$(jq -r '.inbounds[0].streamSettings.security' "$V2RAY_CONFIG_FILE" 2>/dev/null)
+        if [ "$security" = "tls" ]; then
+            tls_status="Enabled"
+        fi
+    fi
+    echo -e "${YELLOW}TLS Status:${NC} $tls_status"
+    
     echo
     echo -e "${YELLOW}  [1] Install V2Ray${NC}"
     echo -e "${YELLOW}  [2] Start/Restart V2Ray${NC}"
@@ -39,9 +49,13 @@ show_v2ray_menu() {
     echo -e "${YELLOW}  [4] Configure VLESS${NC}"
     echo -e "${YELLOW}  [5] Configure VMESS${NC}"
     echo -e "${YELLOW}  [6] Configure WebSocket${NC}"
-    echo -e "${YELLOW}  [7] Generate Client Config${NC}"
-    echo -e "${YELLOW}  [8] View Logs${NC}"
-    echo -e "${YELLOW}  [9] Advanced Settings${NC}"
+    echo -e "${YELLOW}  [7] List V2Ray Users${NC}"
+    echo -e "${YELLOW}  [8] Remove V2Ray User${NC}"
+    echo -e "${YELLOW}  [9] Enable TLS${NC}"
+    echo -e "${YELLOW}  [10] Disable TLS${NC}"
+    echo -e "${YELLOW}  [11] Generate Client Config${NC}"
+    echo -e "${YELLOW}  [12] View Logs${NC}"
+    echo -e "${YELLOW}  [13] Advanced Settings${NC}"
     echo -e "${YELLOW}  [0] Back to Protocol Menu${NC}"
     echo
     echo -e "${CYAN}══════════════════════════════════════════════════════════════════════════════${NC}"
@@ -363,8 +377,8 @@ configure_performance_tuning() {
     echo -e "${YELLOW}Performance Tuning${NC}"
     echo
     
-    local buffer_size=$(get_input "Buffer size (KB)" "32" "32")
-    local connection_timeout=$(get_input "Connection timeout (seconds)" "60" "60")
+    local buffer_size=$(get_input "Buffer size (KB)" "" "32")
+    local connection_timeout=$(get_input "Connection timeout (seconds)" "" "60")
     
     log_info "Performance settings configured"
     log_info "Buffer size: ${buffer_size}KB"
@@ -385,7 +399,7 @@ main() {
         "menu"|*)
             while true; do
                 show_v2ray_menu
-                read -p "Enter your choice [0-9]: " choice
+                read -p "Enter your choice [0-13]: " choice
                 
                 case $choice in
                     1) install_v2ray ;;
@@ -394,9 +408,13 @@ main() {
                     4) configure_vless ;;
                     5) configure_vmess ;;
                     6) configure_websocket ;;
-                    7) generate_client_config ;;
-                    8) view_v2ray_logs ;;
-                    9) advanced_v2ray_settings ;;
+                    7) list_v2ray_users ;;
+                    8) remove_v2ray_user ;;
+                    9) enable_tls ;;
+                    10) disable_tls ;;
+                    11) generate_client_config ;;
+                    12) view_v2ray_logs ;;
+                    13) advanced_v2ray_settings ;;
                     0) exit 0 ;;
                     *) echo -e "${RED}Invalid option. Please try again.${NC}" ; sleep 2 ;;
                 esac
@@ -411,31 +429,567 @@ configure_websocket() {
     echo -e "${YELLOW}WebSocket Configuration${NC}"
     echo
     
-    local domain=$(get_input "Domain name (optional, leave empty for IP-only)" "" "")
-    local path=$(get_input "WebSocket path" "" "/mastermind")
+    echo -e "${CYAN}Choose WebSocket Configuration:${NC}"
+    echo -e "${YELLOW}  [1] WebSocket with TLS (requires domain)${NC}"
+    echo -e "${YELLOW}  [2] WebSocket without TLS (IP-only)${NC}"
+    echo
     
-    # Configure WebSocket settings in V2Ray config
-    if [ -f "$V2RAY_CONFIG_FILE" ]; then
-        # Update existing config for WebSocket
-        log_info "Updating V2Ray configuration for WebSocket..."
-        
+    read -p "Choose option [1-2]: " ws_choice
+    
+    case $ws_choice in
+        1) configure_websocket_tls ;;
+        2) configure_websocket_notls ;;
+        *) 
+            echo -e "${RED}Invalid option${NC}"
+            wait_for_key
+            return
+            ;;
+    esac
+}
+
+# Configure WebSocket with TLS
+configure_websocket_tls() {
+    echo
+    echo -e "${YELLOW}WebSocket with TLS Configuration${NC}"
+    echo
+    
+    local domain=$(get_input "Domain name (required for TLS)" "" "")
+    local path=$(get_input "WebSocket path" "" "/mastermind")
+    local port=$(get_input "Port (443 recommended for TLS)" "" "443")
+    
+    if [ -z "$domain" ]; then
+        log_error "Domain is required for TLS configuration"
+        wait_for_key
+        return
+    fi
+    
+    # Generate UUID
+    local uuid=$(cat /proc/sys/kernel/random/uuid)
+    
+    # Create WebSocket TLS configuration
+    cat > "$V2RAY_CONFIG_FILE" << EOF
+{
+  "log": {
+    "access": "/var/log/v2ray/access.log",
+    "error": "/var/log/v2ray/error.log",
+    "loglevel": "warning"
+  },
+  "inbounds": [
+    {
+      "port": $port,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "id": "$uuid",
+            "level": 0
+          }
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "ws",
+        "security": "tls",
+        "tlsSettings": {
+          "serverName": "$domain",
+          "certificates": [
+            {
+              "certificateFile": "/etc/ssl/certs/$domain.crt",
+              "keyFile": "/etc/ssl/private/$domain.key"
+            }
+          ]
+        },
+        "wsSettings": {
+          "path": "$path",
+          "headers": {
+            "Host": "$domain"
+          }
+        }
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "protocol": "freedom",
+      "settings": {}
+    }
+  ]
+}
+EOF
+    
+    # Save configuration
+    echo "WebSocket TLS Configuration:" > /opt/mastermind/configs/v2ray_websocket_tls.txt
+    echo "UUID: $uuid" >> /opt/mastermind/configs/v2ray_websocket_tls.txt
+    echo "Domain: $domain" >> /opt/mastermind/configs/v2ray_websocket_tls.txt
+    echo "Port: $port" >> /opt/mastermind/configs/v2ray_websocket_tls.txt
+    echo "Path: $path" >> /opt/mastermind/configs/v2ray_websocket_tls.txt
+    echo "Security: TLS" >> /opt/mastermind/configs/v2ray_websocket_tls.txt
+    
+    systemctl restart v2ray
+    
+    echo
+    echo -e "${GREEN}WebSocket TLS Configuration Complete!${NC}"
+    echo -e "${YELLOW}Configuration Details:${NC}"
+    echo -e "  Domain: $domain"
+    echo -e "  Port: $port"
+    echo -e "  Path: $path"
+    echo -e "  UUID: $uuid"
+    echo -e "  Security: TLS"
+    echo
+    echo -e "${YELLOW}Client Link:${NC}"
+    echo "vless://$uuid@$domain:$port?type=ws&path=$path&security=tls#Mastermind-VPS-TLS"
+    echo
+    echo -e "${RED}Important:${NC} Make sure SSL certificate is installed for $domain"
+    echo -e "Use the Domain & SSL menu to install certificates"
+    
+    wait_for_key
+}
+
+# Configure WebSocket without TLS
+configure_websocket_notls() {
+    echo
+    echo -e "${YELLOW}WebSocket without TLS Configuration${NC}"
+    echo
+    
+    local server_ip=$(curl -s ifconfig.me 2>/dev/null || echo "YOUR_SERVER_IP")
+    local path=$(get_input "WebSocket path" "" "/mastermind")
+    local port=$(get_input "Port (80 recommended for non-TLS)" "" "80")
+    
+    # Generate UUID
+    local uuid=$(cat /proc/sys/kernel/random/uuid)
+    
+    # Create WebSocket non-TLS configuration
+    cat > "$V2RAY_CONFIG_FILE" << EOF
+{
+  "log": {
+    "access": "/var/log/v2ray/access.log",
+    "error": "/var/log/v2ray/error.log",
+    "loglevel": "warning"
+  },
+  "inbounds": [
+    {
+      "port": $port,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "id": "$uuid",
+            "level": 0
+          }
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "ws",
+        "security": "none",
+        "wsSettings": {
+          "path": "$path"
+        }
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "protocol": "freedom",
+      "settings": {}
+    }
+  ]
+}
+EOF
+    
+    # Save configuration
+    echo "WebSocket Non-TLS Configuration:" > /opt/mastermind/configs/v2ray_websocket_notls.txt
+    echo "UUID: $uuid" >> /opt/mastermind/configs/v2ray_websocket_notls.txt
+    echo "Server IP: $server_ip" >> /opt/mastermind/configs/v2ray_websocket_notls.txt
+    echo "Port: $port" >> /opt/mastermind/configs/v2ray_websocket_notls.txt
+    echo "Path: $path" >> /opt/mastermind/configs/v2ray_websocket_notls.txt
+    echo "Security: none" >> /opt/mastermind/configs/v2ray_websocket_notls.txt
+    
+    systemctl restart v2ray
+    
+    echo
+    echo -e "${GREEN}WebSocket Non-TLS Configuration Complete!${NC}"
+    echo -e "${YELLOW}Configuration Details:${NC}"
+    echo -e "  Server IP: $server_ip"
+    echo -e "  Port: $port"
+    echo -e "  Path: $path"
+    echo -e "  UUID: $uuid"
+    echo -e "  Security: none"
+    echo
+    echo -e "${YELLOW}Client Link:${NC}"
+    echo "vless://$uuid@$server_ip:$port?type=ws&path=$path#Mastermind-VPS-NoTLS"
+    echo
+    echo -e "${GREEN}This configuration is ready to use without SSL certificates${NC}"
+    
+    wait_for_key
+}
+
+# List V2Ray users
+list_v2ray_users() {
+    echo
+    echo -e "${YELLOW}V2Ray Users List${NC}"
+    echo
+    
+    if [ ! -f "$V2RAY_CONFIG_FILE" ]; then
+        log_error "V2Ray configuration not found. Please configure V2Ray first."
+        wait_for_key
+        return
+    fi
+    
+    # Check if jq is available
+    if ! command -v jq &> /dev/null; then
+        log_error "jq is required for JSON parsing. Please install it first."
+        wait_for_key
+        return
+    fi
+    
+    local protocol=$(jq -r '.inbounds[0].protocol' "$V2RAY_CONFIG_FILE" 2>/dev/null)
+    local port=$(jq -r '.inbounds[0].port' "$V2RAY_CONFIG_FILE" 2>/dev/null)
+    local security=$(jq -r '.inbounds[0].streamSettings.security' "$V2RAY_CONFIG_FILE" 2>/dev/null)
+    local network=$(jq -r '.inbounds[0].streamSettings.network' "$V2RAY_CONFIG_FILE" 2>/dev/null)
+    
+    echo -e "${GREEN}V2Ray Configuration:${NC}"
+    echo -e "  Protocol: $protocol"
+    echo -e "  Port: $port"
+    echo -e "  Security: $security"
+    echo -e "  Network: $network"
+    echo
+    
+    echo -e "${YELLOW}Configured Users:${NC}"
+    echo
+    
+    # Display users based on protocol
+    case "$protocol" in
+        "vless")
+            local user_count=$(jq '.inbounds[0].settings.clients | length' "$V2RAY_CONFIG_FILE" 2>/dev/null)
+            if [ "$user_count" -gt 0 ]; then
+                printf "%-5s %-40s %-10s\n" "No." "UUID" "Level"
+                echo "────────────────────────────────────────────────────────────────"
+                
+                local counter=1
+                jq -r '.inbounds[0].settings.clients[] | "\(.id) \(.level // 0)"' "$V2RAY_CONFIG_FILE" 2>/dev/null | while read uuid level; do
+                    printf "%-5s %-40s %-10s\n" "$counter" "$uuid" "$level"
+                    counter=$((counter + 1))
+                done
+            else
+                echo "  No users configured"
+            fi
+            ;;
+        "vmess")
+            local user_count=$(jq '.inbounds[0].settings.clients | length' "$V2RAY_CONFIG_FILE" 2>/dev/null)
+            if [ "$user_count" -gt 0 ]; then
+                printf "%-5s %-40s %-10s\n" "No." "UUID" "AlterId"
+                echo "────────────────────────────────────────────────────────────────"
+                
+                local counter=1
+                jq -r '.inbounds[0].settings.clients[] | "\(.id) \(.alterId // 0)"' "$V2RAY_CONFIG_FILE" 2>/dev/null | while read uuid alterid; do
+                    printf "%-5s %-40s %-10s\n" "$counter" "$uuid" "$alterid"
+                    counter=$((counter + 1))
+                done
+            else
+                echo "  No users configured"
+            fi
+            ;;
+        *)
+            echo "  Protocol $protocol not supported for user listing"
+            ;;
+    esac
+    
+    echo
+    
+    # Show additional configuration info
+    if [ -f "/opt/mastermind/configs/v2ray_websocket_tls.txt" ]; then
+        echo -e "${YELLOW}TLS Configuration:${NC}"
+        cat /opt/mastermind/configs/v2ray_websocket_tls.txt | sed 's/^/  /'
+        echo
+    fi
+    
+    if [ -f "/opt/mastermind/configs/v2ray_websocket_notls.txt" ]; then
+        echo -e "${YELLOW}Non-TLS Configuration:${NC}"
+        cat /opt/mastermind/configs/v2ray_websocket_notls.txt | sed 's/^/  /'
+        echo
+    fi
+    
+    wait_for_key
+}
+
+# Remove V2Ray user
+remove_v2ray_user() {
+    echo
+    echo -e "${YELLOW}Remove V2Ray User${NC}"
+    echo
+    
+    if [ ! -f "$V2RAY_CONFIG_FILE" ]; then
+        log_error "V2Ray configuration not found. Please configure V2Ray first."
+        wait_for_key
+        return
+    fi
+    
+    # Check if jq is available
+    if ! command -v jq &> /dev/null; then
+        log_error "jq is required for JSON parsing. Please install it first."
+        wait_for_key
+        return
+    fi
+    
+    local protocol=$(jq -r '.inbounds[0].protocol' "$V2RAY_CONFIG_FILE" 2>/dev/null)
+    local user_count=$(jq '.inbounds[0].settings.clients | length' "$V2RAY_CONFIG_FILE" 2>/dev/null)
+    
+    if [ "$user_count" -eq 0 ]; then
+        log_error "No users configured to remove"
+        wait_for_key
+        return
+    fi
+    
+    echo -e "${GREEN}Current Users:${NC}"
+    echo
+    
+    # List current users with numbers
+    case "$protocol" in
+        "vless"|"vmess")
+            printf "%-5s %-40s\n" "No." "UUID"
+            echo "───────────────────────────────────────────────────"
+            
+            local counter=1
+            jq -r '.inbounds[0].settings.clients[].id' "$V2RAY_CONFIG_FILE" 2>/dev/null | while read uuid; do
+                printf "%-5s %-40s\n" "$counter" "$uuid"
+                counter=$((counter + 1))
+            done
+            ;;
+        *)
+            echo "  Protocol $protocol not supported for user removal"
+            wait_for_key
+            return
+            ;;
+    esac
+    
+    echo
+    
+    # Get user selection
+    local user_number=$(get_input "Enter user number to remove (1-$user_count)" "" "")
+    
+    if ! [[ "$user_number" =~ ^[0-9]+$ ]] || [ "$user_number" -lt 1 ] || [ "$user_number" -gt "$user_count" ]; then
+        log_error "Invalid user number"
+        wait_for_key
+        return
+    fi
+    
+    # Get the UUID to remove
+    local uuid_to_remove=$(jq -r ".inbounds[0].settings.clients[$((user_number - 1))].id" "$V2RAY_CONFIG_FILE" 2>/dev/null)
+    
+    echo -e "${YELLOW}User to remove:${NC}"
+    echo -e "  UUID: $uuid_to_remove"
+    echo
+    
+    if confirm "Remove this user?"; then
         # Create backup
-        cp "$V2RAY_CONFIG_FILE" "$V2RAY_CONFIG_FILE.bak"
+        cp "$V2RAY_CONFIG_FILE" "$V2RAY_CONFIG_FILE.bak.$(date +%Y%m%d_%H%M%S)"
         
-        # Update the WebSocket settings
-        jq --arg path "$path" '.inbounds[0].streamSettings.wsSettings.path = $path' "$V2RAY_CONFIG_FILE" > /tmp/v2ray_temp.json
-        mv /tmp/v2ray_temp.json "$V2RAY_CONFIG_FILE"
+        # Remove the user
+        jq "del(.inbounds[0].settings.clients[$((user_number - 1))])" "$V2RAY_CONFIG_FILE" > /tmp/v2ray_temp.json
         
-        if [ -n "$domain" ]; then
-            echo "Domain: $domain" >> /opt/mastermind/configs/v2ray_domain.txt
-            log_info "Domain $domain configured for V2Ray"
+        if [ $? -eq 0 ]; then
+            mv /tmp/v2ray_temp.json "$V2RAY_CONFIG_FILE"
+            systemctl restart v2ray
+            
+            log_success "User removed successfully"
+            echo -e "${GREEN}Removed user:${NC} $uuid_to_remove"
+            
+            # Update user count
+            local new_count=$(jq '.inbounds[0].settings.clients | length' "$V2RAY_CONFIG_FILE" 2>/dev/null)
+            echo -e "${YELLOW}Remaining users:${NC} $new_count"
+            
+        else
+            log_error "Failed to remove user"
+            # Restore backup
+            cp "$V2RAY_CONFIG_FILE.bak.$(date +%Y%m%d_%H%M%S)" "$V2RAY_CONFIG_FILE"
         fi
-        
-        systemctl restart v2ray
-        log_info "WebSocket configuration updated successfully"
     else
-        log_error "V2Ray configuration file not found"
-        echo "Please install V2Ray first using option [1]"
+        log_info "User removal cancelled"
+    fi
+    
+    wait_for_key
+}
+
+# Enable TLS for existing V2Ray configuration
+enable_tls() {
+    echo
+    echo -e "${YELLOW}Enable TLS for V2Ray${NC}"
+    echo
+    
+    if [ ! -f "$V2RAY_CONFIG_FILE" ]; then
+        log_error "V2Ray configuration not found. Please configure V2Ray first."
+        wait_for_key
+        return
+    fi
+    
+    # Check if TLS is already enabled
+    local current_security=$(jq -r '.inbounds[0].streamSettings.security' "$V2RAY_CONFIG_FILE" 2>/dev/null)
+    if [ "$current_security" = "tls" ]; then
+        log_info "TLS is already enabled"
+        wait_for_key
+        return
+    fi
+    
+    # Get domain for TLS
+    local domain=$(get_input "Domain name (required for TLS)" "" "")
+    
+    if [ -z "$domain" ]; then
+        log_error "Domain is required for TLS"
+        wait_for_key
+        return
+    fi
+    
+    # Check if SSL certificates exist
+    if [ ! -f "/etc/ssl/certs/$domain.crt" ] || [ ! -f "/etc/ssl/private/$domain.key" ]; then
+        log_warn "SSL certificates not found for $domain"
+        echo -e "${YELLOW}Available options:${NC}"
+        echo -e "  ${CYAN}[1]${NC} Install Let's Encrypt certificate"
+        echo -e "  ${CYAN}[2]${NC} Use Domain Manager to install certificates"
+        echo -e "  ${CYAN}[3]${NC} Continue anyway (certificates must be manually installed)"
+        echo
+        read -p "Choose option [1-3]: " cert_choice
+        
+        case $cert_choice in
+            1)
+                # Install Let's Encrypt certificate
+                local email=$(get_input "Email for Let's Encrypt" "" "")
+                if [ -n "$email" ]; then
+                    systemctl stop nginx 2>/dev/null || true
+                    
+                    if command -v certbot &> /dev/null; then
+                        certbot certonly --standalone --non-interactive --agree-tos --email "$email" -d "$domain"
+                        
+                        if [ $? -eq 0 ]; then
+                            mkdir -p /etc/ssl/certs /etc/ssl/private
+                            cp "/etc/letsencrypt/live/$domain/fullchain.pem" "/etc/ssl/certs/$domain.crt"
+                            cp "/etc/letsencrypt/live/$domain/privkey.pem" "/etc/ssl/private/$domain.key"
+                            chmod 644 "/etc/ssl/certs/$domain.crt"
+                            chmod 600 "/etc/ssl/private/$domain.key"
+                            log_success "SSL certificate installed"
+                        else
+                            log_error "Certificate installation failed"
+                            wait_for_key
+                            return
+                        fi
+                    else
+                        log_error "Certbot not installed. Installing..."
+                        apt update && apt install -y certbot
+                    fi
+                    
+                    systemctl start nginx 2>/dev/null || true
+                fi
+                ;;
+            2)
+                echo "Please use the Domain Manager to install certificates first"
+                if [ -f "$MASTERMIND_HOME/protocols/domain_manager.sh" ]; then
+                    bash "$MASTERMIND_HOME/protocols/domain_manager.sh"
+                fi
+                wait_for_key
+                return
+                ;;
+            3)
+                log_warn "Continuing without certificate verification"
+                ;;
+            *)
+                log_error "Invalid option"
+                wait_for_key
+                return
+                ;;
+        esac
+    fi
+    
+    # Create backup
+    cp "$V2RAY_CONFIG_FILE" "$V2RAY_CONFIG_FILE.bak.$(date +%Y%m%d_%H%M%S)"
+    
+    # Enable TLS in configuration
+    jq --arg domain "$domain" '
+        .inbounds[0].streamSettings.security = "tls" |
+        .inbounds[0].streamSettings.tlsSettings = {
+            "serverName": $domain,
+            "certificates": [{
+                "certificateFile": "/etc/ssl/certs/\($domain).crt",
+                "keyFile": "/etc/ssl/private/\($domain).key"
+            }]
+        }
+    ' "$V2RAY_CONFIG_FILE" > /tmp/v2ray_temp.json
+    
+    if [ $? -eq 0 ]; then
+        mv /tmp/v2ray_temp.json "$V2RAY_CONFIG_FILE"
+        systemctl restart v2ray
+        
+        log_success "TLS enabled successfully for domain: $domain"
+        echo -e "${GREEN}Configuration updated:${NC}"
+        echo -e "  Domain: $domain"
+        echo -e "  Certificate: /etc/ssl/certs/$domain.crt"
+        echo -e "  Private Key: /etc/ssl/private/$domain.key"
+        
+        # Save TLS configuration
+        echo "TLS Configuration:" > /opt/mastermind/configs/v2ray_tls.txt
+        echo "Domain: $domain" >> /opt/mastermind/configs/v2ray_tls.txt
+        echo "Enabled: $(date)" >> /opt/mastermind/configs/v2ray_tls.txt
+        echo "Certificate: /etc/ssl/certs/$domain.crt" >> /opt/mastermind/configs/v2ray_tls.txt
+        
+    else
+        log_error "Failed to update V2Ray configuration"
+        # Restore backup
+        cp "$V2RAY_CONFIG_FILE.bak.$(date +%Y%m%d_%H%M%S)" "$V2RAY_CONFIG_FILE"
+    fi
+    
+    wait_for_key
+}
+
+# Disable TLS for existing V2Ray configuration
+disable_tls() {
+    echo
+    echo -e "${YELLOW}Disable TLS for V2Ray${NC}"
+    echo
+    
+    if [ ! -f "$V2RAY_CONFIG_FILE" ]; then
+        log_error "V2Ray configuration not found. Please configure V2Ray first."
+        wait_for_key
+        return
+    fi
+    
+    # Check if TLS is currently enabled
+    local current_security=$(jq -r '.inbounds[0].streamSettings.security' "$V2RAY_CONFIG_FILE" 2>/dev/null)
+    if [ "$current_security" != "tls" ]; then
+        log_info "TLS is already disabled"
+        wait_for_key
+        return
+    fi
+    
+    if confirm "Disable TLS? This will make connections unencrypted."; then
+        # Create backup
+        cp "$V2RAY_CONFIG_FILE" "$V2RAY_CONFIG_FILE.bak.$(date +%Y%m%d_%H%M%S)"
+        
+        # Disable TLS in configuration
+        jq '
+            .inbounds[0].streamSettings.security = "none" |
+            del(.inbounds[0].streamSettings.tlsSettings)
+        ' "$V2RAY_CONFIG_FILE" > /tmp/v2ray_temp.json
+        
+        if [ $? -eq 0 ]; then
+            mv /tmp/v2ray_temp.json "$V2RAY_CONFIG_FILE"
+            systemctl restart v2ray
+            
+            log_success "TLS disabled successfully"
+            echo -e "${YELLOW}Configuration updated:${NC}"
+            echo -e "  Security: none"
+            echo -e "  Connections are now unencrypted"
+            
+            # Update TLS configuration
+            echo "TLS Configuration:" > /opt/mastermind/configs/v2ray_tls.txt
+            echo "Status: Disabled" >> /opt/mastermind/configs/v2ray_tls.txt
+            echo "Disabled: $(date)" >> /opt/mastermind/configs/v2ray_tls.txt
+            
+        else
+            log_error "Failed to update V2Ray configuration"
+            # Restore backup
+            cp "$V2RAY_CONFIG_FILE.bak.$(date +%Y%m%d_%H%M%S)" "$V2RAY_CONFIG_FILE"
+        fi
+    else
+        log_info "TLS disable cancelled"
     fi
     
     wait_for_key
